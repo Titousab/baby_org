@@ -1,5 +1,6 @@
 'use client';
 
+import { callAction } from '@/lib/call-action';
 import { type FormEvent, useState, useTransition } from 'react';
 import { clearDayOffAction, setDayOffAction } from '@/app/actions/schedule';
 import { FieldError, type FormError, FormMessage } from '@/components/FieldError';
@@ -17,7 +18,7 @@ export function DayOffSheet({ day, onClose }: { day: DayData; onClose: () => voi
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     startTransition(async () => {
-      const r = await setDayOffAction(form);
+      const r = await callAction(() => setDayOffAction(form));
       if (r.ok) {
         onClose();
         toast(`${title} is a day off`);
@@ -27,7 +28,7 @@ export function DayOffSheet({ day, onClose }: { day: DayData; onClose: () => voi
 
   function clear() {
     startTransition(async () => {
-      const r = await clearDayOffAction(day.date);
+      const r = await callAction(() => clearDayOffAction(day.date));
       if (r.ok) {
         onClose();
         toast(`${title} is a normal day again`);

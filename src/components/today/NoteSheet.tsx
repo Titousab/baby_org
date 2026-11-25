@@ -1,5 +1,6 @@
 'use client';
 
+import { callAction } from '@/lib/call-action';
 import { type FormEvent, useState, useTransition } from 'react';
 import { deleteNoteAction, saveNoteAction } from '@/app/actions/log';
 import { FieldError, type FormError, FormMessage } from '@/components/FieldError';
@@ -18,7 +19,7 @@ export function NoteSheet({ date, note, defaultTime, onClose }: Props) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     startTransition(async () => {
-      const result = await saveNoteAction(form);
+      const result = await callAction(() => saveNoteAction(form));
       if (result.ok) {
         onClose();
         toast('Saved. Everyone can see it now.');
@@ -29,7 +30,7 @@ export function NoteSheet({ date, note, defaultTime, onClose }: Props) {
   function remove() {
     if (!note) return;
     startTransition(async () => {
-      const result = await deleteNoteAction(note.id);
+      const result = await callAction(() => deleteNoteAction(note.id));
       if (result.ok) {
         onClose();
         toast('Note deleted');

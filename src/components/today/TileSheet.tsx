@@ -1,5 +1,6 @@
 'use client';
 
+import { callAction } from '@/lib/call-action';
 import { type FormEvent, useRef, useState, useTransition } from 'react';
 import { clearSlotAction, saveSlotAction } from '@/app/actions/log';
 import { FieldError, type FormError, FormMessage } from '@/components/FieldError';
@@ -23,7 +24,7 @@ export function TileSheet({ def, date, entry, foods, onClose }: Props) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     startTransition(async () => {
-      const result = await saveSlotAction(form);
+      const result = await callAction(() => saveSlotAction(form));
       if (result.ok) {
         onClose();
         toast(`${def.label} saved. Everyone can see it now.`);
@@ -33,7 +34,7 @@ export function TileSheet({ def, date, entry, foods, onClose }: Props) {
 
   function remove() {
     startTransition(async () => {
-      const result = await clearSlotAction(date, def.key);
+      const result = await callAction(() => clearSlotAction(date, def.key));
       if (result.ok) {
         onClose();
         toast('Removed');

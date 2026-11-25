@@ -1,5 +1,6 @@
 'use client';
 
+import { callAction } from '@/lib/call-action';
 import { type FormEvent, useState, useTransition } from 'react';
 import {
   addSchedulePersonAction,
@@ -27,7 +28,7 @@ function useSubmit(action: (form: FormData) => Promise<ActionResult>, onDone: ()
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     startTransition(async () => {
-      const r = await action(form);
+      const r = await callAction(() => action(form));
       if (r.ok) {
         setError(null);
         onDone();
@@ -160,7 +161,7 @@ export function PersonView({ person, isSelf, onBack, onClose }: Nav & { person: 
     if (!person.userId) return;
     const id = person.userId;
     reset.startTransition(async () => {
-      const r = await disableAccountAction(id);
+      const r = await callAction(() => disableAccountAction(id));
       if (r.ok) {
         toast(`${person.name} can't sign in anymore.`);
         onBack();
@@ -172,7 +173,7 @@ export function PersonView({ person, isSelf, onBack, onClose }: Nav & { person: 
     if (!person.userId) return;
     const id = person.userId;
     reset.startTransition(async () => {
-      const r = await restoreAccountAction(id);
+      const r = await callAction(() => restoreAccountAction(id));
       if (r.ok) {
         toast(`${person.name} can sign in again.`);
         onBack();

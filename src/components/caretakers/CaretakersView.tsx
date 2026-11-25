@@ -1,5 +1,6 @@
 'use client';
 
+import { callAction } from '@/lib/call-action';
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { copyPrevWeekAction } from '@/app/actions/schedule';
@@ -43,7 +44,7 @@ export function CaretakersView(p: Props) {
 
   function copyPrev() {
     startTransition(async () => {
-      const r = await copyPrevWeekAction(p.weekStart);
+      const r = await callAction(() => copyPrevWeekAction(p.weekStart));
       toast(r.ok ? 'Copied last week. Change any days that are different.' : r.message);
     });
   }

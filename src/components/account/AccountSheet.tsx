@@ -1,5 +1,6 @@
 'use client';
 
+import { callAction } from '@/lib/call-action';
 import { type FormEvent, useState, useTransition } from 'react';
 import { signOutAction } from '@/app/actions/auth';
 import { changeOwnPasswordAction, updateSettingsAction } from '@/app/actions/people';
@@ -99,7 +100,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     startTransition(async () => {
-      const r = await updateSettingsAction(form);
+      const r = await callAction(() => updateSettingsAction(form));
       if (r.ok) {
         setError(null);
         toast('Settings saved');
@@ -157,7 +158,7 @@ function PasswordForm() {
     const formEl = e.currentTarget;
     const form = new FormData(formEl);
     startTransition(async () => {
-      const r = await changeOwnPasswordAction(form);
+      const r = await callAction(() => changeOwnPasswordAction(form));
       if (r.ok) {
         setError(null);
         formEl.reset();

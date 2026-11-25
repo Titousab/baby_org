@@ -1,5 +1,6 @@
 'use client';
 
+import { callAction } from '@/lib/call-action';
 import { type FormEvent, useState, useTransition } from 'react';
 import { deleteShiftAction, saveShiftAction } from '@/app/actions/schedule';
 import { FieldError, type FormError, FormMessage } from '@/components/FieldError';
@@ -29,7 +30,7 @@ export function ShiftSheet({ draft, days, people, onClose }: Props) {
       return;
     }
     startTransition(async () => {
-      const r = await saveShiftAction(form);
+      const r = await callAction(() => saveShiftAction(form));
       if (r.ok) {
         onClose();
         toast(editing ? 'Shift updated' : 'Shift added');
@@ -41,7 +42,7 @@ export function ShiftSheet({ draft, days, people, onClose }: Props) {
     if (!draft.id) return;
     const id = draft.id;
     startTransition(async () => {
-      const r = await deleteShiftAction(id);
+      const r = await callAction(() => deleteShiftAction(id));
       if (r.ok) {
         onClose();
         toast('Shift deleted');

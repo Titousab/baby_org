@@ -1,5 +1,6 @@
 'use client';
 
+import { callAction } from '@/lib/call-action';
 import { type FormEvent, useState, useTransition } from 'react';
 import { copyWeekAction } from '@/app/actions/schedule';
 import { FieldError, type FormError, FormMessage } from '@/components/FieldError';
@@ -22,7 +23,7 @@ export function CopyWeekSheet({ weekStart, laterWeeks, onClose }: Props) {
     const form = new FormData(e.currentTarget);
     const picked = form.getAll('pick').map(String);
     startTransition(async () => {
-      const r = await copyWeekAction(form);
+      const r = await callAction(() => copyWeekAction(form));
       if (!r.ok) return setError(r);
       onClose();
       if (target === 'next') toast(`Copied to ${fmtWeekRange(next)}`);
