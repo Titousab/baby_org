@@ -37,12 +37,16 @@ export function gapsFor(shifts: { start: string; end: string }[], rules: Coverag
   return gaps;
 }
 
-/** Who has Ezra at `nowMin`, and who takes over after. */
+/**
+ * Who has Ezra at `nowMin`, and who takes over after.
+ * The next person is whoever is still there once the current shift ends, so overlapping handovers
+ * (Selina until 4, Mom from 3:30) still name Mom.
+ */
 export function nowWithEzra(shifts: ShiftView[], nowMin: number): { current: ShiftView | null; next: ShiftView | null } {
   const sorted = [...shifts].sort((a, b) => toMin(a.start) - toMin(b.start));
   const current = sorted.find((s) => toMin(s.start) <= nowMin && nowMin < toMin(s.end)) ?? null;
-  const after = current ? toMin(current.end) : nowMin;
-  const next = sorted.find((s) => s !== current && toMin(s.start) >= after) ?? null;
+  const handover = current ? toMin(current.end) : nowMin;
+  const next = sorted.find((s) => s !== current && toMin(s.end) > handover && toMin(s.start) > (current ? toMin(current.start) : nowMin - 1)) ?? null;
   return { current, next };
 }
 

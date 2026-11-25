@@ -68,6 +68,13 @@ describe('nowWithEzra', () => {
     expect(r.next?.personName).toBe('Lauren');
   });
 
+  test('an overlapping handover still names who comes next', () => {
+    const overlap = [shift('Selina', '08:00', '16:00'), shift('Mom', '15:30', '18:30')];
+    const r = nowWithEzra(overlap, 14 * 60);
+    expect(r.current?.personName).toBe('Selina');
+    expect(r.next?.personName).toBe('Mom');
+  });
+
   test('after everyone has gone', () => {
     expect(nowWithEzra(day, 19 * 60)).toEqual({ current: null, next: null });
   });
