@@ -96,7 +96,12 @@ test('a caretaker sees the schedule but cannot change it', async ({ page }) => {
 
   await signIn(page, 'selina.view@test.local', 'starter-pass-1');
   await page.goto('/calendar/caretakers');
-  await expect(page.locator('.pillnav-label b')).toHaveText('This week');
+  // Next week was planned by the first test: it has shifts and gaps, so family would see edit controls here.
+  await goNextWeek(page);
+  await expect(page.locator('.pillnav-label b')).toHaveText('Next week');
+  await expect(page.locator('li.day .shift').first()).toBeVisible();
+  await expect(page.locator('.gap-row').first()).toBeVisible();
+  await expect(page.locator('button.shift')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Add shift' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Copy week' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Fill' })).toHaveCount(0);
