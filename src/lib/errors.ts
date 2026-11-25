@@ -18,3 +18,15 @@ export class ForbiddenError extends Error {
 }
 
 export type ActionResult = { ok: true } | { ok: false; message: string; field?: string };
+
+/** Runs a change and reports what the person needs to know. Unexpected errors (and redirects) pass through. */
+export async function guard(fn: () => Promise<void>): Promise<ActionResult> {
+  try {
+    await fn();
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof ValidationError) return e.field ? { ok: false, message: e.message, field: e.field } : { ok: false, message: e.message };
+    if (e instanceof ForbiddenError) return { ok: false, message: e.message };
+    throw e;
+  }
+}
