@@ -1,21 +1,24 @@
 import { createHash } from 'node:crypto';
-import { and, asc, between, count, eq, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, asc, between, eq, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import { classSessions, hostFetches, places, programInfo, settings, sources } from '@/db/schema';
 import type { DB } from '@/db/types';
 import { addDays, todayNY } from '@/lib/time';
 import { parseBplDetail, parseBplListing } from './adapters/bpl';
-import type { SourceEvent } from './adapters/common';
+import type { ReadResult } from './adapters/common';
 import { parseTribeEvents } from './adapters/tribe';
 import { parseYoungEthels } from './adapters/young-ethels';
 import { parseAgeText } from './ages';
 import { crawlDelaySeconds, robotsAllows } from './robots';
 
-export type Fetcher = (url: string) => Promise<{ status: number; text: string }>;
+export type Fetcher = (url: string) => Promise<{ status: number; text: string; retryAfterSeconds?: number }>;
 
 export const USER_AGENT = 'EzraFamilyCalendar/1.0 (private family app)';
 const HOUR = 60 * 60 * 1000;
 const REFRESH_AFTER = 20 * HOUR;
 const RETRY_FAILED_AFTER = 1 * HOUR;
+const ROBOTS_KEPT_FOR = 24 * HOUR;
+const ROBOTS_RETRY_AFTER = 1 * HOUR;
+const BLOCKED_FOR = 20 * HOUR;
 const LOCK_FOR = 10 * 60 * 1000;
 const WINDOW_DAYS = 14;
 
@@ -23,15 +26,18 @@ const FAILED = (status: number) => `Couldn't read the schedule (HTTP ${status}).
 const UNREADABLE = "Couldn't read the schedule. Showing what we had.";
 const UNREACHABLE = "Couldn't reach the website. Showing what we had.";
 const NOT_ALLOWED = 'This site asks apps not to read this page.';
+const SLOW_DOWN = "This site asked the app to slow down. We'll try again tomorrow.";
+const REFUSED = "This site refused the app (HTTP 403). We'll try again tomorrow.";
 
 /** The real internet, with an honest name and a time limit. Never retries. */
 export const webFetcher: Fetcher = async (url) => {
   const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT }, redirect: 'follow', signal: AbortSignal.timeout(15_000) });
-  return { status: res.status, text: await res.text() };
+  const retryAfter = Number(res.headers.get('retry-after'));
+  return { status: res.status, text: await res.text(), retryAfterSeconds: Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined };
 };
 
 type Task =
-  | { kind: 'listing'; host: string; url: string; sourceId: number; placeId: number; adapter: string }
+  | { kind: 'listing'; host: string; url: string; sourceId: number; placeId: number; adapter: string; everHadEntries: boolean }
   | { kind: 'detail'; host: string; url: string; sourceId: number; title: string }
   | { kind: 'watch'; host: string; url: string; placeId: number; previousHash: string | null };
 
@@ -53,7 +59,7 @@ async function dueTasks(db: DB, now: Date, force: boolean): Promise<Task[]> {
     const canRetry = force || !s.lastError || older(s.lastAttemptAt, RETRY_FAILED_AFTER, now);
     if (stale && canRetry) {
       const url = listingUrl(s.adapter, s.url, today);
-      tasks.push({ kind: 'listing', host: hostOf(url), url, sourceId: s.id, placeId: s.placeId, adapter: s.adapter });
+      tasks.push({ kind: 'listing', host: hostOf(url), url, sourceId: s.id, placeId: s.placeId, adapter: s.adapter, everHadEntries: s.everHadEntries });
     }
   }
 
@@ -71,7 +77,14 @@ async function dueTasks(db: DB, now: Date, force: boolean): Promise<Task[]> {
   for (const p of pending) {
     tasks.push({ kind: 'detail', host: hostOf(p.detailUrl!), url: p.detailUrl!, sourceId: p.sourceId, title: p.title });
   }
-  return tasks;
+
+  // A site that refused the app or asked it to slow down is left alone, even for Sync now.
+  const blocked = new Set(
+    (await db.select().from(hostFetches))
+      .filter((h) => h.blockedUntil && h.blockedUntil.getTime() > now.getTime())
+      .map((h) => h.host),
+  );
+  return tasks.filter((t) => !blocked.has(t.host));
 }
 
 export async function isSyncDue(db: DB, now: Date = new Date()): Promise<boolean> {
@@ -88,61 +101,35 @@ async function takeLock(db: DB, now: Date): Promise<boolean> {
   return got.length > 0;
 }
 
+async function noteFetch(db: DB, host: string, now: Date, extra: Partial<typeof hostFetches.$inferInsert> = {}) {
+  await db
+    .insert(hostFetches)
+    .values({ host, lastFetchAt: now, ...extra })
+    .onConflictDoUpdate({ target: hostFetches.host, set: { lastFetchAt: now, ...extra } });
+}
+
 /**
- * Reads what's due from the places' websites, politely: at most one page per website per run,
- * never sooner than the site's crawl delay, never pages its robots.txt disallows.
+ * Reads what's due from the places' websites, politely:
+ * - at most one request per website per run, robots.txt included;
+ * - never sooner than the site's crawl delay after the previous request;
+ * - robots.txt is remembered for a day, and a site whose robots.txt can't be read is left alone;
+ * - never pages robots.txt disallows; a 403 or 429 leaves the site alone until tomorrow.
+ * One website's problem never stops the others.
  */
 export async function runSync(db: DB, fetcher: Fetcher, now: Date = new Date(), opts: { force?: boolean } = {}) {
   if (!(await takeLock(db, now))) return { ran: false, fetched: [] as string[] };
   const fetched: string[] = [];
   try {
-    const robotsByHost = new Map<string, string>();
-    const robotsFor = async (host: string) => {
-      if (!robotsByHost.has(host)) {
-        let text = '';
-        try {
-          const res = await fetcher(`https://${host}/robots.txt`);
-          text = res.status === 200 ? res.text : '';
-        } catch {
-          text = '';
-        }
-        robotsByHost.set(host, text);
-      }
-      return robotsByHost.get(host)!;
-    };
-
     const chosen = new Map<string, Task>();
     for (const t of await dueTasks(db, now, Boolean(opts.force))) if (!chosen.has(t.host)) chosen.set(t.host, t);
 
     for (const task of chosen.values()) {
-      const robots = await robotsFor(task.host);
-      const [last] = await db.select().from(hostFetches).where(eq(hostFetches.host, task.host));
-      const waitMs = crawlDelaySeconds(robots) * 1000;
-      if (last && now.getTime() - last.lastFetchAt.getTime() < waitMs) continue;
-
-      if (!robotsAllows(robots, new URL(task.url).pathname)) {
-        if (task.kind === 'listing') await failSource(db, task.sourceId, now, NOT_ALLOWED);
-        if (task.kind === 'detail') await markDetailDone(db, task.sourceId, task.title, now);
-        if (task.kind === 'watch') await db.update(places).set({ watchCheckedAt: now }).where(eq(places.id, task.placeId));
-        continue;
-      }
-
-      await db
-        .insert(hostFetches)
-        .values({ host: task.host, lastFetchAt: now })
-        .onConflictDoUpdate({ target: hostFetches.host, set: { lastFetchAt: now } });
-      fetched.push(task.url);
-
-      let res: { status: number; text: string } | null = null;
       try {
-        res = await fetcher(task.url);
-      } catch {
-        res = null;
+        await runTask(db, fetcher, task, now, fetched);
+      } catch (err) {
+        console.error(`Class sync: ${task.kind} ${task.url} failed`, err);
+        await recordTaskFailure(db, task, now);
       }
-
-      if (task.kind === 'listing') await handleListing(db, task, res, now);
-      else if (task.kind === 'detail') await handleDetail(db, task, res, now);
-      else await handleWatch(db, task, res, now);
     }
     return { ran: true, fetched };
   } finally {
@@ -150,11 +137,76 @@ export async function runSync(db: DB, fetcher: Fetcher, now: Date = new Date(), 
   }
 }
 
+async function runTask(db: DB, fetcher: Fetcher, task: Task, now: Date, fetched: string[]) {
+  const [host] = await db.select().from(hostFetches).where(eq(hostFetches.host, task.host));
+  const robotsKnown =
+    host?.robotsCheckedAt && !older(host.robotsCheckedAt, host.robotsTxt === null ? ROBOTS_RETRY_AFTER : ROBOTS_KEPT_FOR, now);
+  const delayMs = robotsKnown && host?.robotsTxt ? crawlDelaySeconds(host.robotsTxt) * 1000 : 0;
+  if (host && now.getTime() - host.lastFetchAt.getTime() < delayMs) return;
+
+  let robots = robotsKnown ? host!.robotsTxt : undefined;
+  if (!robotsKnown) {
+    // This run's request to the site is its robots.txt.
+    const robotsUrl = `https://${task.host}/robots.txt`;
+    fetched.push(robotsUrl);
+    let res: { status: number; text: string } | null = null;
+    try {
+      res = await fetcher(robotsUrl);
+    } catch {
+      res = null;
+    }
+    // Missing robots.txt (4xx) allows everything; an unreachable one (5xx, timeout) allows nothing for now.
+    robots = res && res.status === 200 ? res.text : res && res.status >= 400 && res.status < 500 ? '' : null;
+    await noteFetch(db, task.host, now, { robotsTxt: robots, robotsCheckedAt: now });
+    if (robots === null || crawlDelaySeconds(robots) > 0) return; // the page waits for a later run
+  }
+  if (robots === null || robots === undefined) return;
+
+  const { pathname, search } = new URL(task.url);
+  if (!robotsAllows(robots, pathname + search)) {
+    if (task.kind === 'listing') await failSource(db, task.sourceId, now, NOT_ALLOWED);
+    if (task.kind === 'detail') await markDetailDone(db, task.sourceId, task.title, now);
+    if (task.kind === 'watch') await db.update(places).set({ watchCheckedAt: now }).where(eq(places.id, task.placeId));
+    return;
+  }
+
+  await noteFetch(db, task.host, now);
+  fetched.push(task.url);
+  let res: { status: number; text: string; retryAfterSeconds?: number } | null = null;
+  try {
+    res = await fetcher(task.url);
+  } catch {
+    res = null;
+  }
+
+  if (res && (res.status === 403 || res.status === 429)) {
+    const waitMs = Math.max(BLOCKED_FOR, (res.retryAfterSeconds ?? 0) * 1000);
+    await noteFetch(db, task.host, now, { blockedUntil: new Date(now.getTime() + waitMs) });
+    if (task.kind === 'listing') await failSource(db, task.sourceId, now, res.status === 429 ? SLOW_DOWN : REFUSED);
+    if (task.kind === 'watch') await db.update(places).set({ watchCheckedAt: now }).where(eq(places.id, task.placeId));
+    return;
+  }
+
+  if (task.kind === 'listing') await handleListing(db, task, res, now);
+  else if (task.kind === 'detail') await handleDetail(db, task, res, now);
+  else await handleWatch(db, task, res, now);
+}
+
+async function recordTaskFailure(db: DB, task: Task, now: Date) {
+  try {
+    if (task.kind === 'listing') await failSource(db, task.sourceId, now, UNREADABLE);
+    else if (task.kind === 'detail') await markDetailDone(db, task.sourceId, task.title, now);
+    else await db.update(places).set({ watchCheckedAt: now }).where(eq(places.id, task.placeId));
+  } catch (err) {
+    console.error('Class sync: could not record the failure', err);
+  }
+}
+
 async function failSource(db: DB, sourceId: number, now: Date, message: string) {
   await db.update(sources).set({ lastAttemptAt: now, lastError: message }).where(eq(sources.id, sourceId));
 }
 
-function parseListing(adapter: string, text: string, url: string): SourceEvent[] {
+function readListing(adapter: string, text: string, url: string): ReadResult {
   if (adapter === 'bpl-branch') return parseBplListing(text, new URL(url).origin);
   if (adapter === 'young-ethels') return parseYoungEthels(text);
   return parseTribeEvents(text);
@@ -164,25 +216,22 @@ async function handleListing(db: DB, task: Extract<Task, { kind: 'listing' }>, r
   if (!res) return failSource(db, task.sourceId, now, UNREACHABLE);
   if (res.status !== 200) return failSource(db, task.sourceId, now, FAILED(res.status));
 
+  const read = readListing(task.adapter, res.text, task.url);
+  // A page that used to list entries and now lists none at all has changed or broken: keep what we had.
+  if (read.entries === 0 && task.everHadEntries) return failSource(db, task.sourceId, now, UNREADABLE);
+
   const today = todayNY(now);
   const last = addDays(today, WINDOW_DAYS - 1);
   const inWindow = and(eq(classSessions.sourceId, task.sourceId), between(classSessions.date, today, last));
-  const events = parseListing(task.adapter, res.text, task.url).filter((e) => e.date >= today && e.date <= last);
-
-  if (!events.length) {
-    const [{ n }] = await db.select({ n: count() }).from(classSessions).where(inWindow);
-    if (n > 0) return failSource(db, task.sourceId, now, UNREADABLE);
-  }
-
+  const events = read.events.filter((e) => e.date >= today && e.date <= last);
   const known = new Map((await db.select().from(programInfo).where(eq(programInfo.sourceId, task.sourceId))).map((p) => [p.title, p]));
+
   await db.transaction(async (tx) => {
     for (const e of events) {
       const info = known.get(e.title);
       const ages = parseAgeText(e.ageText ?? info?.ageText ?? '');
-      const values = {
+      const changes = {
         placeId: task.placeId,
-        sourceId: task.sourceId,
-        externalId: e.externalId,
         title: e.title,
         date: e.date,
         startTime: e.start,
@@ -193,23 +242,23 @@ async function handleListing(db: DB, task: Extract<Task, { kind: 'listing' }>, r
         statusText: e.statusText ?? info?.statusText ?? null,
         bookingUrl: e.url,
       };
-      const { placeId, sourceId, externalId, ...changes } = values;
-      void placeId;
-      void sourceId;
-      void externalId;
-      await tx.insert(classSessions).values(values).onConflictDoUpdate({
-        target: [classSessions.sourceId, classSessions.externalId],
-        set: changes,
-      });
+      await tx
+        .insert(classSessions)
+        .values({ ...changes, sourceId: task.sourceId, externalId: e.externalId })
+        .onConflictDoUpdate({ target: [classSessions.sourceId, classSessions.externalId], set: changes });
       if (task.adapter === 'bpl-branch' && !info) {
         await tx.insert(programInfo).values({ sourceId: task.sourceId, title: e.title, detailUrl: e.url }).onConflictDoNothing();
         known.set(e.title, { sourceId: task.sourceId, title: e.title, detailUrl: e.url, ageText: null, ageMin: null, ageMax: null, durationMin: null, statusText: null, fetchedAt: null });
       }
     }
-    const seen = events.map((e) => e.externalId);
-    const stale = await tx.select({ id: classSessions.id, externalId: classSessions.externalId }).from(classSessions).where(inWindow);
-    for (const s of stale) if (!seen.includes(s.externalId)) await tx.delete(classSessions).where(eq(classSessions.id, s.id));
-    await tx.update(sources).set({ lastSuccessAt: now, lastAttemptAt: now, lastError: null }).where(eq(sources.id, task.sourceId));
+    const seen = new Set(events.map((e) => e.externalId));
+    for (const s of await tx.select({ id: classSessions.id, externalId: classSessions.externalId }).from(classSessions).where(inWindow)) {
+      if (!seen.has(s.externalId)) await tx.delete(classSessions).where(eq(classSessions.id, s.id));
+    }
+    await tx
+      .update(sources)
+      .set({ lastSuccessAt: now, lastAttemptAt: now, lastError: null, everHadEntries: task.everHadEntries || read.entries > 0 })
+      .where(eq(sources.id, task.sourceId));
   });
 }
 
@@ -222,11 +271,11 @@ async function handleDetail(db: DB, task: Extract<Task, { kind: 'detail' }>, res
   if (!res || res.status !== 200) return markDetailDone(db, task.sourceId, task.title, now);
   const d = parseBplDetail(res.text);
   const ages = parseAgeText(d.ageText ?? '');
-  const where = and(eq(programInfo.sourceId, task.sourceId), eq(programInfo.title, task.title));
   await db
     .update(programInfo)
     .set({ ageText: d.ageText, ageMin: ages?.min ?? null, ageMax: ages?.max ?? null, durationMin: d.durationMin, statusText: d.statusText, fetchedAt: now })
-    .where(where);
+    .where(and(eq(programInfo.sourceId, task.sourceId), eq(programInfo.title, task.title)));
+  // Ages, length and the sign-up rule hold for every session of the program...
   await db
     .update(classSessions)
     .set({
@@ -236,6 +285,13 @@ async function handleDetail(db: DB, task: Extract<Task, { kind: 'detail' }>, res
       statusText: d.statusText,
     })
     .where(and(eq(classSessions.sourceId, task.sourceId), eq(classSessions.title, task.title)));
+  // ...but "Full" is only about the session whose page this was.
+  if (d.full) {
+    await db
+      .update(classSessions)
+      .set({ statusText: 'Full' })
+      .where(and(eq(classSessions.sourceId, task.sourceId), eq(classSessions.bookingUrl, task.url)));
+  }
 }
 
 /** What a page says, without its code, so only real content changes count. */
