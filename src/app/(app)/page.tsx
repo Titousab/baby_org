@@ -2,10 +2,12 @@ import { getDb } from '@/db/client';
 import { AvatarButton } from '@/components/AvatarButton';
 import { DayNav } from '@/components/today/DayNav';
 import { NotesSection } from '@/components/today/NotesSection';
+import { NowCard } from '@/components/today/NowCard';
 import { TodayTiles } from '@/components/today/TodayTiles';
 import { requireUser } from '@/lib/auth/current-user';
 import { getDayLog, recentFoods, SLOTS } from '@/lib/log';
 import { colorsByName } from '@/lib/people';
+import { getDayShifts } from '@/lib/schedule/repo';
 import { fmtDuration, fromMin, minutesNowNY, todayNY, toMin } from '@/lib/time';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -17,7 +19,12 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const date = asked && DATE.test(asked) && asked <= today ? asked : today;
 
   const db = await getDb();
-  const [day, foods, colors] = await Promise.all([getDayLog(db, date), recentFoods(db), colorsByName(db)]);
+  const [day, foods, colors, todayShifts] = await Promise.all([
+    getDayLog(db, date),
+    recentFoods(db),
+    colorsByName(db),
+    date === today ? getDayShifts(db, today) : Promise.resolve([]),
+  ]);
   const logged = SLOTS.filter((s) => day.slots[s]).length;
   const nap = day.slots.nap;
 
@@ -31,6 +38,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         <DayNav date={date} today={today} />
       </header>
       <div className="content gut">
+        {date === today && <NowCard shifts={todayShifts} nowMin={minutesNowNY()} />}
         <p className="progress">
           <span className="pips" aria-hidden="true">
             {SLOTS.map((s) => (

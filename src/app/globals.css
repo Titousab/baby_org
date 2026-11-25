@@ -330,3 +330,6 @@ a.icon-btn{color:var(--ink)}
 .icon-btn[aria-disabled="true"]{opacity:.28;pointer-events:none}
 a.now{color:var(--sage-ink)}
 input[type="password"],input[type="date"]{width:100%;min-height:50px;padding:12px 14px;border-radius:14px;border:1.5px solid var(--line-strong);background:var(--bg);font-size:17px}
+button.day-name{border:none;background:none;padding:0;text-align:left;color:var(--ink);text-decoration:underline dotted var(--line-strong);text-underline-offset:4px}
+div.shift{cursor:default}
+div.shift:hover{background:none}

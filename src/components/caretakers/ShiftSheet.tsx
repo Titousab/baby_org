@@ -1,0 +1,115 @@
+'use client';
+
+import { type FormEvent, useState, useTransition } from 'react';
+import { deleteShiftAction, saveShiftAction } from '@/app/actions/schedule';
+import { FieldError, type FormError, FormMessage } from '@/components/FieldError';
+import { Sheet } from '@/components/Sheet';
+import { useToast } from '@/components/Toast';
+import { fmtDuration, toMin } from '@/lib/time';
+import type { DayData, Person } from './types';
+
+export type ShiftDraft = { id?: number; date: string; personId: number | null; start: string; end: string };
+
+type Props = { draft: ShiftDraft; days: DayData[]; people: Person[]; onClose: () => void };
+
+export function ShiftSheet({ draft, days, people, onClose }: Props) {
+  const toast = useToast();
+  const [error, setError] = useState<FormError>(null);
+  const [pending, startTransition] = useTransition();
+  const [start, setStart] = useState(draft.start);
+  const [end, setEnd] = useState(draft.end);
+  const editing = Boolean(draft.id);
+
+  function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    if (!form.get('personId')) {
+      setError({ message: 'Pick who is covering this shift.', field: 'who' });
+      return;
+    }
+    startTransition(async () => {
+      const r = await saveShiftAction(form);
+      if (r.ok) {
+        onClose();
+        toast(editing ? 'Shift updated' : 'Shift added');
+      } else setError(r);
+    });
+  }
+
+  function remove() {
+    if (!draft.id) return;
+    const id = draft.id;
+    startTransition(async () => {
+      const r = await deleteShiftAction(id);
+      if (r.ok) {
+        onClose();
+        toast('Shift deleted');
+      } else setError(r);
+    });
+  }
+
+  const valid = start && end && toMin(end) > toMin(start);
+
+  return (
+    <Sheet open onClose={onClose} title={editing ? 'Edit shift' : 'Add a shift'} icon="cal" color="sage">
+      <form onSubmit={submit} noValidate>
+        {draft.id && <input type="hidden" name="id" value={draft.id} />}
+        <fieldset className="field">
+          <legend>Who?</legend>
+          <div className="opts">
+            {people.map((person) => (
+              <label key={person.id} className="opt">
+                <input type="radio" name="personId" id={`who-${person.id}`} value={person.id} defaultChecked={person.id === draft.personId} />
+                <span>
+                  <i className="dot" style={{ background: `var(--${person.color})` }} />
+                  {person.name}
+                </span>
+              </label>
+            ))}
+          </div>
+          <FieldError error={error} field="who" />
+        </fieldset>
+        <fieldset className="field">
+          <legend>Which day?</legend>
+          <div className="opts">
+            {days.map((d) => (
+              <label key={d.date} className="opt">
+                <input type="radio" name="date" id={`day-${d.date}`} value={d.date} defaultChecked={d.date === draft.date} />
+                <span>
+                  {d.dow} {d.dayNum}
+                </span>
+              </label>
+            ))}
+          </div>
+          <FieldError error={error} field="date" />
+        </fieldset>
+        <div className="row2">
+          <div className="field">
+            <label htmlFor="f-s">Starts</label>
+            <input type="time" id="f-s" name="start" value={start} onChange={(e) => setStart(e.target.value)} />
+            <FieldError error={error} field="start" />
+          </div>
+          <div className="field">
+            <label htmlFor="f-e">Ends</label>
+            <input type="time" id="f-e" name="end" value={end} onChange={(e) => setEnd(e.target.value)} />
+            <FieldError error={error} field="end" />
+          </div>
+        </div>
+        <p className="calc" style={{ marginTop: 16 }}>
+          {valid ? `${fmtDuration(toMin(end) - toMin(start))} shift` : 'End time is before start time'}
+        </p>
+        <FormMessage error={error} fields={['who', 'date', 'start', 'end']} />
+        <div className="sheet-actions">
+          {editing && (
+            <button type="button" className="btn-text danger" onClick={remove} disabled={pending}>
+              Delete
+            </button>
+          )}
+          <button type="submit" className="btn-primary" disabled={pending}>
+            Save shift
+          </button>
+        </div>
+      </form>
+    </Sheet>
+  );
+}
