@@ -170,6 +170,7 @@ test('adding one shift on several days at once', async ({ page }) => {
   await expect(sheet.getByText('Pick at least one day.')).toBeVisible();
 
   // Weekdays ticks Monday to Friday
+  await expect(sheet.getByRole('group', { name: 'Which days?', exact: true })).toBeVisible();
   await sheet.getByRole('button', { name: 'Weekdays' }).click();
   for (const d of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']) await expect(sheet.getByRole('checkbox', { name: new RegExp(`^${d} `) })).toBeChecked();
   await expect(sheet.getByRole('checkbox', { name: /^Sat / })).not.toBeChecked();
@@ -183,6 +184,7 @@ test('adding one shift on several days at once', async ({ page }) => {
 
   // Editing stays one day
   await dayRow(page, 'Tue').locator('button.shift').click();
+  await expect(page.getByRole('dialog').getByRole('group', { name: 'Which day?', exact: true })).toBeVisible();
   await expect(page.getByRole('dialog').getByRole('radio', { name: /^Tue / })).toBeChecked();
   await expect(page.getByRole('dialog').getByRole('button', { name: 'Weekdays' })).toHaveCount(0);
   await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();

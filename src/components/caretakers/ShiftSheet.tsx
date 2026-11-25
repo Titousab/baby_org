@@ -99,7 +99,7 @@ export function ShiftSheet({ draft, days, people, onClose }: Props) {
           <FieldError error={error} field="name" />
         </fieldset>
         <fieldset className="field">
-          <legend>Which day?</legend>
+          <legend>{editing ? 'Which day?' : 'Which days?'}</legend>
           <div className="opts">
             {days.map((d) => (
               <label key={d.date} className="opt">

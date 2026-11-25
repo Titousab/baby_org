@@ -29,7 +29,7 @@ When a caretaker works the same hours on several days (say Lauren, 8–4, Monday
 
 ## Design
 
-- **Adding a shift:** "Which day?" uses checkboxes instead of radios, so any number of the week's seven days can be ticked. The day that the sheet opened on (today, the week's first day, or the gap's day for "Fill") starts ticked.
+- **Adding a shift:** the day section is headed "Which days?" and uses checkboxes instead of radios, so any number of the week's seven days can be ticked. The day that the sheet opened on (today, the week's first day, or the gap's day for "Fill") starts ticked.
 - **"Weekdays" shortcut:** a small button in the "Which day?" section makes the ticked days exactly Monday to Friday. (Proposed by Claude, accepted.) It leaves out any of those days marked as a day off, which can still be ticked by hand. (Claude's call, made while planning.)
 - **Duration line:** shows "8h shift" for one day and "8h shift × 5 days" when several are ticked.
 - **Saving:** one shift per ticked day, all in one transaction. If any is invalid, nothing is saved. Ticking no days shows "Pick at least one day." The toast reads "Shift added" for one and "5 shifts added" for several.
