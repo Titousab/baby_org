@@ -5,7 +5,7 @@ import type { DB } from '@/db/types';
 
 export type SessionUser = { id: number; name: string; email: string; role: 'family' | 'caretaker' };
 
-export const SESSION_COOKIE = 'ezra_session';
+export { SESSION_COOKIE } from './cookie';
 export const SESSION_DAYS = 365;
 
 const DAY_MS = 24 * 60 * 60 * 1000;

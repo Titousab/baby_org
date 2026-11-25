@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "e2e": "playwright test",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "dev:e2e": "cross-env PGLITE_DIR=memory:// OWNER_NAME=Dad OWNER_EMAIL=dad@test.local OWNER_PASSWORD=test-pass-123 NEXT_TELEMETRY_DISABLED=1 next dev -p 3100"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.6.0",

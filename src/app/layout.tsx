@@ -25,7 +25,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" className={`${fredoka.variable} ${figtree.variable}`}>
       <body>
         <div className="stage">
-          <div className="app">{children}</div>
+          <div className="app" id="app">{children}</div>
         </div>
       </body>
     </html>

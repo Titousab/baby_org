@@ -329,3 +329,4 @@ a{color:inherit;text-decoration:none}
 a.icon-btn{color:var(--ink)}
 .icon-btn[aria-disabled="true"]{opacity:.28;pointer-events:none}
 a.now{color:var(--sage-ink)}
+input[type="password"],input[type="date"]{width:100%;min-height:50px;padding:12px 14px;border-radius:14px;border:1.5px solid var(--line-strong);background:var(--bg);font-size:17px}
