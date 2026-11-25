@@ -10,9 +10,13 @@ declare global {
 
 async function open(): Promise<DB> {
   if (process.env.DATABASE_URL) {
-    const { Pool } = await import('pg');
+    const { createPool } = await import('./pool');
     const { drizzle } = await import('drizzle-orm/node-postgres');
-    return drizzle(new Pool({ connectionString: process.env.DATABASE_URL, max: 5 }), { schema });
+    const { attachDatabasePool } = await import('@vercel/functions');
+    const pool = createPool(process.env.DATABASE_URL);
+    // On Vercel, keeps the function alive just long enough to close idle connections cleanly.
+    attachDatabasePool(pool);
+    return drizzle(pool, { schema });
   }
 
   // Local development and e2e tests: an in-process Postgres, migrated and bootstrapped on first use.

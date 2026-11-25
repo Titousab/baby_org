@@ -24,10 +24,10 @@ async function main() {
     console.log('Skipping migrations (no DATABASE_URL or preview build)');
     return;
   }
-  const { Pool } = await import('pg');
+  const { createPool } = await import('@/db/pool');
   const { drizzle } = await import('drizzle-orm/node-postgres');
   const schema = await import('@/db/schema');
-  const pool = new Pool({ connectionString: DATABASE_URL, max: 1 });
+  const pool = createPool(DATABASE_URL);
   try {
     const result = await migrateAndBootstrap(drizzle(pool, { schema }), process.env);
     const ownerNote = {
