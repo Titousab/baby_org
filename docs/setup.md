@@ -8,8 +8,12 @@ About 15 minutes. The data lives in a Postgres database on your **Railway** acco
 2. Click **New** (or **+ New Project**) → **Database** → **PostgreSQL**. If it asks, choose **Deploy PostgreSQL**.
 3. Wait until the Postgres box shows a green **Active** or **Online** status (under a minute).
 4. Optional: click the project name at the top and rename it **ezra**, so it's easy to find later.
-5. Click the **Postgres** box → the **Variables** tab.
-6. Find **`DATABASE_PUBLIC_URL`**. Click the eye icon to reveal it, then copy it.
+5. Turn on public access, so Vercel can reach the database. It's off by default.
+   - Click the **Postgres** box → **Settings** tab → **Networking** → **Public Networking**.
+   - Click **TCP Proxy** (it may read **+ TCP Proxy** or **Generate TCP Proxy**). If it asks for a port, enter **5432**.
+   - Railway shows an address like `something.proxy.rlwy.net:12345`.
+6. Go to the **Variables** tab. Find **`DATABASE_PUBLIC_URL`**: it only appears after step 5. Click the eye icon to reveal it, then copy it.
+   - If it's still missing, build it from the other variables: `postgresql://PGUSER:PGPASSWORD@<proxy address>:<proxy port>/PGDATABASE`. Use the values shown for `PGUSER`, `PGPASSWORD` and `PGDATABASE`, and the address and port from step 5.
    - It starts with `postgresql://` and contains something like `…proxy.rlwy.net:12345/railway`.
    - Use the **public** one, not `DATABASE_URL`. That one only works inside Railway, and the app runs on Vercel.
    - It contains the database password, so keep it private.
