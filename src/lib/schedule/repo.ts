@@ -95,10 +95,20 @@ export async function clearDayOff(db: DB, date: string): Promise<void> {
   await db.delete(daysOff).where(eq(daysOff.date, date));
 }
 
+type ShiftRow = { personId: number; startTime: string; endTime: string };
+
+/** Makes the day `to` hold exactly copies of `rows`, replacing whatever it had. */
+async function putDay(tx: DB, to: string, rows: ShiftRow[]): Promise<void> {
+  await tx.delete(shifts).where(eq(shifts.date, to));
+  const copies = rows.map((s) => ({ date: to, personId: s.personId, startTime: s.startTime, endTime: s.endTime }));
+  if (copies.length) await tx.insert(shifts).values(copies);
+}
+
 /**
- * Copies one week's shifts onto other weeks, all in one transaction.
+ * Copying shifts, each copy all in one transaction. A day off is left alone.
+ *
+ * copyWeek copies one week onto other weeks, day for day, skipping a day off on either side.
  * 'replace' makes each target day match the source day; 'fill' only fills target days that are empty.
- * A day off on either side is left alone.
  */
 export async function copyWeek(db: DB, src: string, targets: string[], mode: 'replace' | 'fill'): Promise<void> {
   await db.transaction(async (tx) => {
@@ -111,15 +121,30 @@ export async function copyWeek(db: DB, src: string, targets: string[], mode: 're
         const to = addDays(target, i);
         if (off.has(from) || off.has(to)) continue;
 
-        const existing = await tx.select({ id: shifts.id }).from(shifts).where(eq(shifts.date, to));
-        if (mode === 'fill' && existing.length) continue;
-        if (existing.length) await tx.delete(shifts).where(inArray(shifts.id, existing.map((e) => e.id)));
-
-        const copies = source
-          .filter((s) => s.date === from)
-          .map((s) => ({ date: to, personId: s.personId, startTime: s.startTime, endTime: s.endTime }));
-        if (copies.length) await tx.insert(shifts).values(copies);
+        if (mode === 'fill') {
+          const existing = await tx.select({ id: shifts.id }).from(shifts).where(eq(shifts.date, to)).limit(1);
+          if (existing.length) continue;
+        }
+        await putDay(tx, to, source.filter((s) => s.date === from));
       }
     }
+  });
+}
+
+/**
+ * copyDay makes each target day match the source day, replacing what was on it.
+ * Target days off are skipped, and the source day is never a target of itself.
+ */
+export async function copyDay(db: DB, src: string, targets: string[]): Promise<void> {
+  if (!DATE.test(src) || !targets.every((t) => DATE.test(t))) throw new ValidationError('Pick a day.', 'to');
+  const days = [...new Set(targets)].filter((t) => t !== src);
+  if (!days.length) throw new ValidationError('Pick at least one day.', 'to');
+
+  await db.transaction(async (tx) => {
+    const source = await tx.select().from(shifts).where(eq(shifts.date, src));
+    if (!source.length) throw new ValidationError('There are no shifts on this day to copy.');
+    const off = new Set((await tx.select({ date: daysOff.date }).from(daysOff).where(inArray(daysOff.date, days))).map((o) => o.date));
+
+    for (const to of days) if (!off.has(to)) await putDay(tx, to, source);
   });
 }
