@@ -10,6 +10,7 @@ import {
   createAccount,
   disableAccount,
   resetPassword,
+  restoreAccount,
   type Role,
   setRole,
   updateSchedulePerson,
@@ -67,6 +68,14 @@ export async function disableAccountAction(userId: number): Promise<ActionResult
   return guard(async () => {
     await requireFamily();
     await disableAccount(await getDb(), userId);
+    everywhere();
+  });
+}
+
+export async function restoreAccountAction(userId: number): Promise<ActionResult> {
+  return guard(async () => {
+    await requireFamily();
+    await restoreAccount(await getDb(), userId);
     everywhere();
   });
 }

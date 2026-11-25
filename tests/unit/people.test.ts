@@ -11,6 +11,7 @@ import {
   disableAccount,
   listPeople,
   resetPassword,
+  restoreAccount,
   setRole,
   updateSchedulePerson,
 } from '@/lib/people';
@@ -74,6 +75,17 @@ describe('accounts', () => {
     expect((await getDayLog(db, TODAY)).slots.wake?.byName).toBe('Selina');
     expect((await listPeople(db)).find((p) => p.name === 'Selina')?.disabled).toBe(true);
     expect((await signIn(db, 'selina@example.com', 'starter-pass-1')).ok).toBe(false);
+  });
+});
+
+describe('giving access back', () => {
+  test('a removed person can be let back in with their old password', async () => {
+    const { db } = await withOwner();
+    const selina = await createAccount(db, { name: 'Selina', email: 'selina@example.com', role: 'caretaker', password: 'starter-pass-1' });
+    await disableAccount(db, selina);
+    await restoreAccount(db, selina);
+    expect((await listPeople(db)).find((p) => p.name === 'Selina')?.disabled).toBe(false);
+    expect((await signIn(db, 'selina@example.com', 'starter-pass-1')).ok).toBe(true);
   });
 });
 

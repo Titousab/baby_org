@@ -6,6 +6,7 @@ import {
   createAccountAction,
   disableAccountAction,
   resetPasswordAction,
+  restoreAccountAction,
   setRoleAction,
   updatePersonAction,
 } from '@/app/actions/people';
@@ -167,6 +168,18 @@ export function PersonView({ person, isSelf, onBack, onClose }: Nav & { person: 
     });
   }
 
+  function giveAccessBack() {
+    if (!person.userId) return;
+    const id = person.userId;
+    reset.startTransition(async () => {
+      const r = await restoreAccountAction(id);
+      if (r.ok) {
+        toast(`${person.name} can sign in again.`);
+        onBack();
+      } else reset.setError(r);
+    });
+  }
+
   return (
     <Sheet open onClose={onClose} title={person.name} color={person.color}>
       <form onSubmit={details.submit} noValidate>
@@ -240,6 +253,14 @@ export function PersonView({ person, isSelf, onBack, onClose }: Nav & { person: 
               </button>
             ))}
         </>
+      )}
+      {person.userId && person.disabled && (
+        <div className="confirm" style={{ background: 'var(--surface-2)', color: 'var(--ink)' }}>
+          <p>{person.name} can&apos;t sign in right now.</p>
+          <button type="button" className="btn-soft wide" onClick={giveAccessBack} disabled={reset.pending}>
+            Give access back
+          </button>
+        </div>
       )}
       <div className="sheet-actions">
         <BackButton onBack={onBack} />

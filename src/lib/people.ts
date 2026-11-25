@@ -107,6 +107,11 @@ export async function disableAccount(db: DB, userId: number): Promise<void> {
   await deleteUserSessions(db, userId);
 }
 
+/** Undoes "Remove access": they can sign in again with their last password. */
+export async function restoreAccount(db: DB, userId: number): Promise<void> {
+  await db.update(users).set({ disabledAt: null }).where(eq(users.id, userId));
+}
+
 export async function resetPassword(db: DB, userId: number, password: string): Promise<void> {
   checkPassword(password);
   await db.update(users).set({ passwordHash: await hashPassword(password) }).where(eq(users.id, userId));
