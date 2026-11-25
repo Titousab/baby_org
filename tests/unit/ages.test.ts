@@ -10,6 +10,14 @@ describe('parseAgeText takes ages as written', () => {
     ['3 mo – 1.5 yrs', { min: 3, max: 18 }],
     ['6 to 24 months', { min: 6, max: 24 }],
     ['Ages 3+', { min: 36, max: null }],
+    // Found by review:
+    ['Ages 1–2', { min: 12, max: 24 }],
+    ['Under 5', { min: 0, max: 59 }],
+    ['under 18 months', { min: 0, max: 17 }],
+    ['2 years and older', { min: 24, max: null }],
+    ['18 mos.-3 yrs.', { min: 18, max: 36 }],
+    ['Ages 2-5 Moms welcome', { min: 24, max: 60 }],
+    ['For babies 0-12 months and toddlers 1-3 years', { min: 0, max: 36 }],
   ])('%s', (text, expected) => {
     expect(parseAgeText(text)).toEqual(expected);
   });

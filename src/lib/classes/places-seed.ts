@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { manualClasses, places, settings, sources } from '@/db/schema';
+import { manualClasses, places, seedClassesApplied, settings, sources } from '@/db/schema';
 import type { DB } from '@/db/types';
 import { ensureSettings } from '@/lib/bootstrap';
 import seed from '../../../seed/manual-classes.json';
@@ -95,31 +95,63 @@ export const PLACES_SEED: PlaceSeed[] = [
   },
 ];
 
-type SeedClass = (typeof seed.classes)[number];
+export type SeedClass = {
+  place: string;
+  title: string;
+  first_date: string;
+  start_time: string;
+  duration_min: number;
+  age_min_months: number | null;
+  age_max_months: number | null;
+  price_text: string | null;
+  note: string | null;
+  booking_url: string | null;
+  repeats_weekly: boolean;
+  until_date: string | null;
+};
 
-/** Adds the places, their sources and the screenshot classes, once ever, so later edits stick. */
-export async function ensurePlaces(db: DB): Promise<void> {
+/** The classes transcribed from the owner's screenshots (seed/manual-classes.json). */
+export const SEED_CLASSES: SeedClass[] = seed.classes;
+
+const seedKey = (c: SeedClass) => `${c.place}|${c.title}|${c.first_date}|${c.start_time}`;
+
+/**
+ * Adds the places and their sources once ever (so renames stick), and each screenshot class once ever
+ * (so new entries in the seed file arrive on the next deploy, and classes the family deleted stay deleted).
+ */
+export async function ensurePlaces(db: DB, classes: SeedClass[] = SEED_CLASSES): Promise<void> {
   await ensureSettings(db);
   await db.transaction(async (tx) => {
     const [row] = await tx.select({ seeded: settings.placesSeeded }).from(settings).where(eq(settings.id, 1));
-    if (row?.seeded) return;
+    const applied = new Set((await tx.select().from(seedClassesApplied)).map((r) => r.key));
 
-    const idBySeedName = new Map<string, number>();
-    for (const p of PLACES_SEED) {
-      const [existing] = await tx.select({ id: places.id }).from(places).where(eq(places.slug, p.slug));
-      let id = existing?.id;
-      if (!id) {
-        const { source, seedName, ...values } = p;
-        void seedName;
-        [{ id }] = await tx.insert(places).values(values).returning({ id: places.id });
-        if (source) await tx.insert(sources).values({ placeId: id, adapter: source.adapter, url: source.url });
-      }
-      if (p.seedName) idBySeedName.set(p.seedName, id);
+    if (row?.seeded && applied.size === 0) {
+      // Seeded before classes were tracked one by one: everything in the file then was already added.
+      const before = classes.filter((c) => SEED_CLASSES.includes(c));
+      if (before.length) await tx.insert(seedClassesApplied).values(before.map((c) => ({ key: seedKey(c) }))).onConflictDoNothing();
+      for (const c of before) applied.add(seedKey(c));
     }
 
-    for (const c of seed.classes as SeedClass[]) {
-      const placeId = idBySeedName.get(c.place);
+    if (!row?.seeded) {
+      for (const p of PLACES_SEED) {
+        const [existing] = await tx.select({ id: places.id }).from(places).where(eq(places.slug, p.slug));
+        if (existing) continue;
+        const { source, seedName, ...values } = p;
+        void seedName;
+        const [{ id }] = await tx.insert(places).values(values).returning({ id: places.id });
+        if (source) await tx.insert(sources).values({ placeId: id, adapter: source.adapter, url: source.url });
+      }
+    }
+
+    const slugBySeedName = new Map(PLACES_SEED.filter((p) => p.seedName).map((p) => [p.seedName!, p.slug]));
+    const idBySlug = new Map((await tx.select({ id: places.id, slug: places.slug }).from(places)).map((p) => [p.slug, p.id]));
+
+    for (const c of classes) {
+      if (applied.has(seedKey(c))) continue;
+      const placeId = idBySlug.get(slugBySeedName.get(c.place) ?? '');
       if (!placeId) continue;
+      await tx.insert(seedClassesApplied).values({ key: seedKey(c) }).onConflictDoNothing();
+      applied.add(seedKey(c));
       await tx.insert(manualClasses).values({
         placeId,
         title: c.title,

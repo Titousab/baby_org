@@ -151,6 +151,8 @@ export const sources = pgTable('sources', {
   lastSuccessAt: ts('last_success_at'),
   lastAttemptAt: ts('last_attempt_at'),
   lastError: text('last_error'),
+  /** Once a source has listed anything, an empty page means it couldn't be read. */
+  everHadEntries: boolean('ever_had_entries').notNull().default(false),
 });
 
 /** What a program's own page says (library): ages, length, sign-up. Learned one page at a time. */
@@ -233,4 +235,14 @@ export const ageOverrides = pgTable(
 export const hostFetches = pgTable('host_fetches', {
   host: text('host').primaryKey(),
   lastFetchAt: ts('last_fetch_at').notNull(),
+  /** The site's robots.txt, remembered for a day. Null with a check time means it couldn't be read. */
+  robotsTxt: text('robots_txt'),
+  robotsCheckedAt: ts('robots_checked_at'),
+  /** After a 403 or 429, the site is left alone until then. */
+  blockedUntil: ts('blocked_until'),
+});
+
+/** Classes from seed/manual-classes.json already added (by place, title, first day, start), so new ones can be added later. */
+export const seedClassesApplied = pgTable('seed_classes_applied', {
+  key: text('key').primaryKey(),
 });

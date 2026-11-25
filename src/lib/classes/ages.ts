@@ -1,29 +1,39 @@
 /** Age ranges in months, taken exactly as the place writes them (spec §7.2b). */
 export type AgeRange = { min: number | null; max: number | null };
 
-const UNIT = String.raw`(months?|mos?|mo|years?|yrs?|yr)`;
+// A unit must end at a word boundary, so "Moms" isn't read as months.
+const UNIT = String.raw`(?:(months?|mos?|years?|yrs?)\b\.?)`;
 const NUM = String.raw`(\d+(?:\.\d+)?)`;
 
-const toMonths = (n: number, unit: string | undefined) => Math.round(/^m/i.test(unit ?? '') ? n : n * 12);
+const toMonths = (n: number, unit: string) => Math.round(/^mo/i.test(unit) ? n : n * 12);
 
 /**
- * "18 months to 3 years" → 18–36, "1 – 2 yrs" → 12–24, "Ages 3+" → 36 and up.
- * A bare number range takes the unit written after it ("6 to 24 months" → months).
+ * "18 months to 3 years" → 18–36, "Ages 1–2" → 12–24, "18 mos.-3 yrs." → 18–36, "Under 5" → 0–59,
+ * "Ages 3+" / "2 years and older" → that age and up. Several ranges ("babies 0-12 months and
+ * toddlers 1-3 years") give the span they cover together. Numbers with no unit count as years
+ * only when the text says "age(s)", so times and dates are never mistaken for ages.
  */
 export function parseAgeText(text: string): AgeRange | null {
-  const t = text.replace(/–|—/g, '-');
+  const t = text.replace(/[–—]/g, '-');
+  const defaultUnit = /\bages?\b/i.test(t) ? 'years' : null;
 
-  const range = new RegExp(String.raw`${NUM}\s*${UNIT}?\s*(?:-|to)\s*${NUM}\s*${UNIT}`, 'i').exec(t);
-  if (range) {
-    const [, a, unitA, b, unitB] = range;
-    return { min: toMonths(Number(a), unitA ?? unitB), max: toMonths(Number(b), unitB) };
+  const ranges: AgeRange[] = [];
+  const rangeRe = new RegExp(String.raw`${NUM}\s*${UNIT}?\s*(?:-|to)\s*${NUM}\s*${UNIT}?`, 'gi');
+  for (const [, a, unitA, b, unitB] of t.matchAll(rangeRe)) {
+    const lowUnit = unitA ?? unitB ?? defaultUnit;
+    const highUnit = unitB ?? unitA ?? defaultUnit;
+    if (!lowUnit || !highUnit) continue;
+    ranges.push({ min: toMonths(Number(a), lowUnit), max: toMonths(Number(b), highUnit) });
+  }
+  if (ranges.length) {
+    return { min: Math.min(...ranges.map((r) => r.min!)), max: Math.max(...ranges.map((r) => r.max!)) };
   }
 
-  const plus = new RegExp(String.raw`${NUM}\s*${UNIT}?\s*(?:\+|and up|or older)`, 'i').exec(t);
-  if (plus && /age|month|year|yr|mo\b|\+/i.test(t)) {
-    const [, a, unit] = plus;
-    return { min: toMonths(Number(a), unit ?? 'years'), max: null };
-  }
+  const under = new RegExp(String.raw`\bunder\s+${NUM}\s*${UNIT}?`, 'i').exec(t);
+  if (under) return { min: 0, max: toMonths(Number(under[1]), under[2] ?? 'years') - 1 };
+
+  const plus = new RegExp(String.raw`${NUM}\s*${UNIT}?\s*(?:\+|and up\b|and older\b|or older\b|and over\b)`, 'i').exec(t);
+  if (plus) return { min: toMonths(Number(plus[1]), plus[2] ?? 'years'), max: null };
   return null;
 }
 

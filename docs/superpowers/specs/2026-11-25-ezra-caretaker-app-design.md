@@ -182,7 +182,7 @@ Seed these five places at setup with their colors, adapters and watch URLs. The 
 
 The parser is conservative, because of the anti-goal about wrongly showing a class as fitting Ezra:
 
-- Explicit months are taken as written: "18 months to 3 years" → 18–47, "6–24 mo" → 6–24.
+- Explicit months are taken as written: "18 months to 3 years" → 18–36, "6–24 mo" → 6–24.
 - Year values are taken **as written**: "Ages 1–2" → 12–24, "0 mo – 1 yrs" → 0–12, "1.5–3 years" → 18–36. (Evidence: The Bramble lists Tummy Time as "0 mo – 1 yrs", which is clearly for babies up to 12 months.) This is also the safe direction for the anti-goal: a borderline class gets hidden rather than shown wrongly.
 - "X+" or "X and up" → min X, no max. "Under X" → max X×12−1.
 - Words without numbers ("walkers", "toddlers", "all ages") or anything unparseable → no range, shown as "Age not listed".
@@ -229,7 +229,7 @@ Ship as soon as phase 1 works, so the family can start logging and scheduling. L
 
 1. Vercel: import `baby_org` from GitHub, naming the project so the address reads well (for example `ezras-day` → `ezras-day.vercel.app`).
 2. Railway: add a PostgreSQL database to a project, and copy its public connection address into Vercel as `DATABASE_URL`.
-3. Vercel → Settings → Environment Variables: add `CRON_SECRET` (the builder supplies a value or tells the owner how to generate one).
+3. Vercel → Settings → Environment Variables: add `DATABASE_URL` (Railway's public address) and the three `OWNER_*` values. No cron secret is needed: classes sync when the Classes screen is opened.
 4. Run the migration and the one-time seed for the owner's own account (exact commands provided).
 5. In the app: set Ezra's birthdate, add Mom, Lauren and Selina, then text each their starting password and the link, with home-screen instructions.
 

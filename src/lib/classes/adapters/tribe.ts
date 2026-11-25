@@ -1,7 +1,8 @@
-import { type SourceEvent, textOf } from './common';
+import { type ReadResult, type SourceEvent, textOf } from './common';
 
 const SKIP_CATEGORIES = /^(food|volunteer|wellness)$/i;
 const FAMILY = /all ages|famil|toddler|\bkids?\b|children|storytime/i;
+const ADULTS_ONLY = /adults? only|\b(18|21)\s*\+|ages? (18|21) and (up|over|older)/i;
 
 type TribeEvent = {
   id: number;
@@ -14,19 +15,22 @@ type TribeEvent = {
   categories?: { name: string }[];
 };
 
-/** Prospect Park Alliance's event feed (The Events Calendar). Keeps family-friendly events. */
-export function parseTribeEvents(json: string): SourceEvent[] {
-  let data: { events?: TribeEvent[] };
+/** Prospect Park Alliance's event feed (The Events Calendar). Keeps family-friendly events, never adults-only ones. */
+export function parseTribeEvents(json: string): ReadResult {
+  let data: { events?: TribeEvent[] | null } | null;
   try {
     data = JSON.parse(json);
   } catch {
-    return [];
+    return { events: [], entries: 0 };
   }
+  const list = Array.isArray(data?.events) ? data.events : [];
   const out: SourceEvent[] = [];
-  for (const e of data.events ?? []) {
+  for (const e of list) {
+    if (!e || typeof e.start_date !== 'string') continue;
     if ((e.categories ?? []).some((c) => SKIP_CATEGORIES.test(c.name))) continue;
     const title = textOf(e.title ?? '');
-    if (!FAMILY.test(`${title} ${textOf(e.description ?? '')}`)) continue;
+    const words = `${title} ${textOf(e.description ?? '')}`;
+    if (!FAMILY.test(words) || ADULTS_ONLY.test(words)) continue;
     const [date, time] = e.start_date.split(' ');
     const start = time?.slice(0, 5);
     if (!date || !start) continue;
@@ -48,5 +52,5 @@ export function parseTribeEvents(json: string): SourceEvent[] {
       ageText: null,
     });
   }
-  return out;
+  return { events: out, entries: list.length };
 }

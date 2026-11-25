@@ -11,6 +11,9 @@ export type SourceEvent = {
   ageText: string | null;
 };
 
+/** Kept events, plus how many entries the page listed before filtering (0 means the page could not be read). */
+export type ReadResult = { events: SourceEvent[]; entries: number };
+
 const ENTITIES: Record<string, string> = {
   amp: '&',
   lt: '<',

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { ageInMonths, ageLabel, fitFor } from '@/lib/classes/ages';
 import type { ClassItem } from '@/lib/classes/list';
+import { visibleIdeas } from '@/lib/classes/view';
 import { addDays, dowShort, fmtDayShort, fmtTime, toMin } from '@/lib/time';
 import { ClassSheet } from './ClassSheet';
 import { ManualClassSheet } from './ManualClassSheet';
@@ -38,7 +39,7 @@ export function ClassesView(p: Props) {
   const classes = p.items.filter((i) => i.kind === 'class' && (placeFilter === 'all' || i.placeId === placeFilter));
   const otherAges = classes.filter((i) => fit(i) === 'older' || fit(i) === 'younger');
   const shown = showAll ? classes : classes.filter((i) => !otherAges.includes(i));
-  const ideas = p.items.filter((i) => i.kind === 'idea');
+  const ideas = visibleIdeas(p.items, p.birthdate);
   const days = Array.from({ length: 7 }, (_, n) => addDays(p.today, n));
 
   const dayLabel = (date: string) => {
@@ -195,6 +196,7 @@ function ClassRow({ item, fit, onOpen }: { item: ClassItem; fit: ReturnType<type
           {meta}
           {item.priceText && <> · <span className="spots">{item.priceText}</span></>}
           {item.statusText && <> · <span className={/full|wait/i.test(item.statusText) ? 'wait' : 'spots'}>{item.statusText}</span></>}
+          {!item.statusText && item.note && <> · {item.note}</>}
           {(fit === 'older' || fit === 'younger') && <> · <span className="older">{FIT_LABEL[fit]}</span></>}
         </span>
       </button>
