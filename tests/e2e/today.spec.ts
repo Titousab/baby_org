@@ -30,8 +30,20 @@ test('logging, editing and removing things on Today', async ({ page }) => {
   await page.getByRole('dialog').getByLabel('Woke up').fill('14:30');
   await expect(page.getByRole('dialog').getByText('Slept 1h 30m')).toBeVisible();
   await page.getByRole('dialog').getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByRole('button', { name: /^Nap/ })).toContainText('1h 30m');
+  const napTile = page.getByRole('button', { name: /^Nap/ });
+  await expect(napTile).toContainText('1h 30m');
   await expect(page.getByText('Napped 1h 30m')).toBeVisible();
+
+  // A second nap the same day
+  await napTile.click();
+  await expect(page.getByRole('dialog')).toContainText('1:00 – 2:30 pm');
+  await page.getByRole('dialog').getByRole('button', { name: 'Add another nap' }).click();
+  await page.getByRole('dialog').getByLabel('Fell asleep').fill('16:00');
+  await page.getByRole('dialog').getByLabel('Woke up').fill('16:30');
+  await page.getByRole('dialog').getByRole('button', { name: 'Save' }).click();
+  await expect(napTile).toContainText('2h');
+  await expect(napTile).toContainText('2 naps');
+  await expect(page.getByText('Napped 2h')).toBeVisible();
 
   // Something else
   await page.getByRole('button', { name: 'Add something else' }).click();

@@ -1,25 +1,11 @@
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
-import { logNotes, logSlots, users } from '@/db/schema';
+import { logNotes, logSlots, naps, users } from '@/db/schema';
 import type { DB } from '@/db/types';
 import { ValidationError } from './errors';
+import { AMOUNTS, type DayLog, MEAL_SLOTS, NOTE_KINDS, type SlotEntry, type SlotKey, SLOTS } from './log-types';
 import { toMin } from './time';
 
-export const SLOTS = ['wake', 'breakfast', 'nap', 'lunch', 'snack', 'dinner'] as const;
-export type SlotKey = (typeof SLOTS)[number];
-export const MEAL_SLOTS: readonly SlotKey[] = ['breakfast', 'lunch', 'snack', 'dinner'];
-export const AMOUNTS = ['All', 'Most', 'Some', 'A little', 'None'] as const;
-export const NOTE_KINDS = ['Note', 'Health', 'Medicine', 'Diaper', 'Milestone'] as const;
-
-export type SlotEntry = {
-  slot: SlotKey;
-  time: string;
-  endTime: string | null;
-  food: string | null;
-  amount: string | null;
-  byName: string;
-};
-export type NoteEntry = { id: number; time: string; kind: string; text: string; byName: string };
-export type DayLog = { date: string; slots: Record<SlotKey, SlotEntry | null>; notes: NoteEntry[] };
+export * from './log-types';
 
 const DEFAULT_FOODS = ['Banana', 'Yogurt', 'Oatmeal', 'Toast', 'Avocado', 'Berries', 'Cheese', 'Pasta', 'Chicken', 'Rice'];
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -36,20 +22,22 @@ function checkDate(date: string, today: string) {
 
 export async function getDayLog(db: DB, date: string): Promise<DayLog> {
   const slotRows = await db
-    .select({
-      slot: logSlots.slot,
-      time: logSlots.time,
-      endTime: logSlots.endTime,
-      food: logSlots.food,
-      amount: logSlots.amount,
-      byName: users.name,
-    })
+    .select({ slot: logSlots.slot, time: logSlots.time, food: logSlots.food, amount: logSlots.amount, byName: users.name })
     .from(logSlots)
     .innerJoin(users, eq(logSlots.updatedBy, users.id))
     .where(eq(logSlots.date, date));
 
   const slots = Object.fromEntries(SLOTS.map((s) => [s, null])) as Record<SlotKey, SlotEntry | null>;
-  for (const row of slotRows) slots[row.slot as SlotKey] = { ...row, slot: row.slot as SlotKey };
+  for (const row of slotRows) {
+    if ((SLOTS as readonly string[]).includes(row.slot)) slots[row.slot as SlotKey] = { ...row, slot: row.slot as SlotKey };
+  }
+
+  const napRows = await db
+    .select({ id: naps.id, start: naps.startTime, end: naps.endTime, byName: users.name })
+    .from(naps)
+    .innerJoin(users, eq(naps.updatedBy, users.id))
+    .where(eq(naps.date, date))
+    .orderBy(asc(naps.startTime), asc(naps.id));
 
   const notes = await db
     .select({ id: logNotes.id, time: logNotes.time, kind: logNotes.kind, text: logNotes.text, byName: users.name })
@@ -58,24 +46,19 @@ export async function getDayLog(db: DB, date: string): Promise<DayLog> {
     .where(eq(logNotes.date, date))
     .orderBy(asc(logNotes.time), asc(logNotes.id));
 
-  return { date, slots, notes };
+  return { date, slots, naps: napRows, notes };
 }
 
-type SlotInput = { date: string; slot: SlotKey; time: string; endTime?: string; food?: string; amount?: string };
+type SlotInput = { date: string; slot: SlotKey; time: string; food?: string; amount?: string };
 
 export async function saveSlot(db: DB, input: SlotInput, userId: number, today: string): Promise<void> {
   checkDate(input.date, today);
   if (!SLOTS.includes(input.slot)) throw new ValidationError('Pick what to log.', 'slot');
   const time = checkTime(input.time, 'time');
 
-  let endTime: string | null = null;
   let food: string | null = null;
   let amount: string | null = null;
-
-  if (input.slot === 'nap') {
-    endTime = checkTime(input.endTime, 'endTime');
-    if (toMin(endTime) <= toMin(time)) throw new ValidationError('The nap has to end after it starts.', 'endTime');
-  } else if (MEAL_SLOTS.includes(input.slot)) {
+  if (MEAL_SLOTS.includes(input.slot)) {
     food = input.food?.trim() ?? '';
     if (!food) throw new ValidationError('Write what he ate, like "banana and yogurt".', 'food');
     if (input.amount) {
@@ -84,7 +67,7 @@ export async function saveSlot(db: DB, input: SlotInput, userId: number, today: 
     }
   }
 
-  const values = { time, endTime, food, amount, updatedBy: userId, updatedAt: new Date() };
+  const values = { time, food, amount, updatedBy: userId, updatedAt: new Date() };
   await db
     .insert(logSlots)
     .values({ date: input.date, slot: input.slot, ...values })
@@ -93,6 +76,26 @@ export async function saveSlot(db: DB, input: SlotInput, userId: number, today: 
 
 export async function clearSlot(db: DB, date: string, slot: SlotKey): Promise<void> {
   await db.delete(logSlots).where(and(eq(logSlots.date, date), eq(logSlots.slot, slot)));
+}
+
+type NapInput = { id?: number; date: string; start: string; end: string };
+
+/** Adds a nap, or changes one when `id` is given. A day can have as many naps as he takes. */
+export async function saveNap(db: DB, input: NapInput, userId: number, today: string): Promise<void> {
+  checkDate(input.date, today);
+  const start = checkTime(input.start, 'start');
+  const end = checkTime(input.end, 'end');
+  if (toMin(end) <= toMin(start)) throw new ValidationError('The nap has to end after it starts.', 'end');
+
+  if (input.id) {
+    await db.update(naps).set({ startTime: start, endTime: end, updatedBy: userId, updatedAt: new Date() }).where(eq(naps.id, input.id));
+  } else {
+    await db.insert(naps).values({ date: input.date, startTime: start, endTime: end, createdBy: userId, updatedBy: userId });
+  }
+}
+
+export async function deleteNap(db: DB, id: number): Promise<void> {
+  await db.delete(naps).where(eq(naps.id, id));
 }
 
 type NoteInput = { id?: number; date: string; time: string; kind: string; text: string };

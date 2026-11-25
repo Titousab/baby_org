@@ -2,7 +2,7 @@
 
 import { useId, useState } from 'react';
 import { Icon } from '@/components/Icon';
-import type { NoteEntry } from '@/lib/log';
+import type { NoteEntry } from '@/lib/log-types';
 import { fmtTime } from '@/lib/time';
 import { NoteSheet } from './NoteSheet';
 import { KIND_COLORS } from './tiles';

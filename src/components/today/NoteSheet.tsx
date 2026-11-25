@@ -6,7 +6,7 @@ import { deleteNoteAction, saveNoteAction } from '@/app/actions/log';
 import { FieldError, type FormError, FormMessage } from '@/components/FieldError';
 import { Sheet } from '@/components/Sheet';
 import { useToast } from '@/components/Toast';
-import { NOTE_KINDS, type NoteEntry } from '@/lib/log';
+import { NOTE_KINDS, type NoteEntry } from '@/lib/log-types';
 
 type Props = { date: string; note: NoteEntry | null; defaultTime: string; onClose: () => void };
 

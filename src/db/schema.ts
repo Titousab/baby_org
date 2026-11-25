@@ -45,7 +45,6 @@ export const logSlots = pgTable(
     date: date('date', { mode: 'string' }).notNull(),
     slot: text('slot').notNull(),
     time: text('time').notNull(),
-    endTime: text('end_time'),
     food: text('food'),
     amount: text('amount'),
     updatedBy: integer('updated_by')
@@ -54,6 +53,25 @@ export const logSlots = pgTable(
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.date, t.slot] })],
+);
+
+export const naps = pgTable(
+  'naps',
+  {
+    id: serial('id').primaryKey(),
+    date: date('date', { mode: 'string' }).notNull(),
+    startTime: text('start_time').notNull(),
+    endTime: text('end_time').notNull(),
+    createdBy: integer('created_by')
+      .notNull()
+      .references(() => users.id),
+    updatedBy: integer('updated_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [check('nap_end_after_start', sql`${t.endTime} > ${t.startTime}`)],
 );
 
 export const logNotes = pgTable('log_notes', {

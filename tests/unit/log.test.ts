@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { logSlots } from '@/db/schema';
-import { clearSlot, deleteNote, getDayLog, recentFoods, saveNote, saveSlot } from '@/lib/log';
+import { clearSlot, deleteNap, deleteNote, getDayLog, recentFoods, saveNap, saveNote, saveSlot } from '@/lib/log';
+import { napMinutes } from '@/lib/log-types';
 import { createTestDb, seedUser } from '../helpers/test-db';
 
 const TODAY = '2026-11-25';
@@ -20,7 +21,6 @@ describe('slots', () => {
     expect(day.slots.breakfast).toEqual({
       slot: 'breakfast',
       time: '07:30',
-      endTime: null,
       food: 'Oatmeal with blueberries',
       amount: 'Most',
       byName: 'Mom',
@@ -44,11 +44,10 @@ describe('slots', () => {
     ).rejects.toMatchObject({ name: 'ValidationError', field: 'food', message: 'Write what he ate, like "banana and yogurt".' });
   });
 
-  test('a nap has to end after it starts', async () => {
+  test('naps are no longer a single slot', async () => {
     const { db, mom } = await setup();
-    await expect(
-      saveSlot(db, { date: TODAY, slot: 'nap', time: '13:00', endTime: '12:30' }, mom, TODAY),
-    ).rejects.toMatchObject({ name: 'ValidationError', field: 'endTime', message: 'The nap has to end after it starts.' });
+    // @ts-expect-error 'nap' is not a slot any more
+    await expect(saveSlot(db, { date: TODAY, slot: 'nap', time: '13:00' }, mom, TODAY)).rejects.toMatchObject({ name: 'ValidationError' });
   });
 
   test('a day that has not happened yet cannot be logged; today can', async () => {
@@ -76,6 +75,39 @@ describe('slots', () => {
     await saveSlot(db, { date: TODAY, slot: 'wake', time: '06:45' }, mom, TODAY);
     await clearSlot(db, TODAY, 'wake');
     expect((await getDayLog(db, TODAY)).slots.wake).toBeNull();
+  });
+});
+
+describe('naps', () => {
+  test('a day can have several naps, sorted, each showing who saved it, with a total', async () => {
+    const { db, mom, selina } = await setup();
+    await saveNap(db, { date: TODAY, start: '15:30', end: '16:00' }, selina, TODAY);
+    await saveNap(db, { date: TODAY, start: '09:50', end: '11:10' }, mom, TODAY);
+    const day = await getDayLog(db, TODAY);
+    expect(day.naps.map((n) => `${n.start}-${n.end} ${n.byName}`)).toEqual(['09:50-11:10 Mom', '15:30-16:00 Selina']);
+    expect(napMinutes(day.naps)).toBe(110);
+  });
+
+  test('a nap has to end after it starts', async () => {
+    const { db, mom } = await setup();
+    await expect(saveNap(db, { date: TODAY, start: '13:00', end: '12:30' }, mom, TODAY)).rejects.toMatchObject({
+      name: 'ValidationError',
+      field: 'end',
+      message: 'The nap has to end after it starts.',
+    });
+    await expect(saveNap(db, { date: '2026-11-26', start: '13:00', end: '14:00' }, mom, TODAY)).rejects.toMatchObject({
+      message: "You can't log a day that hasn't happened yet.",
+    });
+  });
+
+  test('a nap can be edited and deleted', async () => {
+    const { db, mom, selina } = await setup();
+    await saveNap(db, { date: TODAY, start: '13:00', end: '14:00' }, mom, TODAY);
+    const [nap] = (await getDayLog(db, TODAY)).naps;
+    await saveNap(db, { id: nap.id, date: TODAY, start: '13:10', end: '14:40' }, selina, TODAY);
+    expect((await getDayLog(db, TODAY)).naps).toMatchObject([{ id: nap.id, start: '13:10', end: '14:40', byName: 'Selina' }]);
+    await deleteNap(db, nap.id);
+    expect((await getDayLog(db, TODAY)).naps).toEqual([]);
   });
 });
 

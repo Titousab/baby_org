@@ -15,6 +15,13 @@
       "when": 1795640966737,
       "tag": "0001_presets_seeded",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795641484398,
+      "tag": "0002_multiple_naps",
+      "breakpoints": true
     }
   ]
 }
