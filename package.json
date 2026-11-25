@@ -8,19 +8,27 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.6.0",
+    "bcryptjs": "^3.0.3",
+    "drizzle-orm": "^0.45.4",
     "next": "16.4.6",
+    "pg": "^8.23.1",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",
     "@types/node": "^24.19.4",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "cross-env": "^10.1.0",
+    "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "tsx": "^4.23.15",
