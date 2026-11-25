@@ -7,6 +7,7 @@ const dayRow = (page: Page, dow: string) => page.locator('li.day').filter({ has:
 test('planning a week: add, fill a gap, copy the week, mark a day off', async ({ page }) => {
   await signIn(page);
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Calendar' }).click();
+  await page.getByRole('navigation', { name: 'Calendar views' }).getByRole('link', { name: 'Caretakers' }).click();
   await expect(page).toHaveURL(/\/calendar\/caretakers/);
 
   // Next week starts empty

@@ -342,3 +342,16 @@ div.shift:hover{background:none}
 .confirm p{margin:0 0 8px;font-weight:600}
 .danger-bg{background:var(--warn);color:var(--surface)}
 .btn-text.center{display:block;margin-inline:auto}
+/* Classes (Part 2) */
+.class-open{display:flex;flex-direction:column;gap:2px;min-width:0;padding:0;border:none;background:none;text-align:left;color:inherit}
+.c-title{font-size:17px;font-weight:700;line-height:1.25}
+span.c-place,span.c-meta{display:flex;flex-wrap:wrap;align-items:center;gap:0 6px}
+span.c-meta{display:block}
+a.book{text-decoration:none}
+a.btn-primary{text-decoration:none}
+.select{width:100%;min-height:50px;padding:12px 14px;border-radius:14px;border:1.5px solid var(--line-strong);background:var(--bg);font-size:17px;color:var(--ink)}
+.watch-alert{display:block;margin-top:6px;padding:8px 10px;border-radius:10px;background:var(--butter-soft);color:var(--butter-ink);font-size:14px;font-weight:600}
+.watch-alert a{text-decoration:underline}
+.watch-alert .btn-text{padding:0 4px;font-size:14px}
+.err-text{color:var(--warn-ink)}
+input[type="number"],input[inputmode="numeric"]{font-variant-numeric:tabular-nums}

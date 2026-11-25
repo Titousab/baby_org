@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
 export default function CalendarPage() {
-  redirect('/calendar/caretakers');
+  redirect('/calendar/classes');
 }

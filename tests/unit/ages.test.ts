@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { ageInMonths, fitFor, parseAgeText } from '@/lib/classes/ages';
+import { ageInMonths, ageLabel, fitFor, parseAgeText } from '@/lib/classes/ages';
 
 describe('parseAgeText takes ages as written', () => {
   test.each([
@@ -25,6 +25,17 @@ describe('ageInMonths', () => {
     expect(ageInMonths('2025-06-10', '2026-11-25')).toBe(17);
     expect(ageInMonths('2025-06-10', '2026-12-09')).toBe(17);
     expect(ageInMonths('2025-06-10', '2026-12-10')).toBe(18);
+  });
+});
+
+describe('ageLabel', () => {
+  test('short, readable ranges', () => {
+    expect(ageLabel(12, 24)).toBe('12–24 mo');
+    expect(ageLabel(0, 48)).toBe('0–4 yrs');
+    expect(ageLabel(18, 36)).toBe('18 mo – 3 yrs');
+    expect(ageLabel(3, 18)).toBe('3–18 mo');
+    expect(ageLabel(36, null)).toBe('3 yrs and up');
+    expect(ageLabel(null, null)).toBe('Age not listed');
   });
 });
 

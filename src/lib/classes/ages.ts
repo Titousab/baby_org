@@ -27,6 +27,18 @@ export function parseAgeText(text: string): AgeRange | null {
   return null;
 }
 
+const yrs = (m: number) => `${Number.isInteger(m / 12) ? m / 12 : (m / 12).toFixed(1)}`;
+
+/** "12–24 mo", "0–4 yrs", "18 mo – 3 yrs", "3 yrs and up", "Age not listed". */
+export function ageLabel(min: number | null, max: number | null): string {
+  if (min === null && max === null) return 'Age not listed';
+  if (max === null) return min! % 12 === 0 ? `${yrs(min!)} yrs and up` : `${min} mo and up`;
+  const lo = min ?? 0;
+  if (max <= 24) return `${lo}–${max} mo`;
+  if (lo % 12 === 0) return `${yrs(lo)}–${yrs(max)} yrs`;
+  return `${lo} mo – ${yrs(max)} yrs`;
+}
+
 /** Whole months between a birthdate and a day, both 'YYYY-MM-DD'. */
 export function ageInMonths(birthdate: string, onDate: string): number {
   const [by, bm, bd] = birthdate.split('-').map(Number);

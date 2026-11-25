@@ -62,6 +62,20 @@ describe('a caretaker cannot change family-only things, even by calling the serv
   });
 });
 
+describe('class changes are family-only too', () => {
+  test('adding, editing and syncing classes are refused', async () => {
+    const classes = await import('@/app/actions/classes');
+    const cls = form({ placeId: '1', title: 'Music', firstDate: '2026-11-25', startTime: '10:00', durationMin: '45' });
+    expect(await classes.saveManualClassAction(cls)).toEqual(DENIED);
+    expect(await classes.deleteManualClassAction(1)).toEqual(DENIED);
+    expect(await classes.setAgeOverrideAction(form({ placeId: '1', title: 'Music', ageMin: '12', ageMax: '24' }))).toEqual(DENIED);
+    expect(await classes.clearAgeOverrideAction(1, 'Music')).toEqual(DENIED);
+    expect(await classes.markWatchSeenAction(1)).toEqual(DENIED);
+    expect(await classes.addPlaceAction(form({ name: 'Gym', websiteUrl: 'https://gym.example', color: 'sage' }))).toEqual(DENIED);
+    expect(await classes.syncNowAction()).toEqual(DENIED);
+  });
+});
+
 describe('a caretaker can log the day and change their own password', () => {
   test('logging works', async () => {
     expect(await saveSlotAction(form({ date: '2026-11-25', slot: 'wake', time: '06:45' }))).toEqual({ ok: true });
