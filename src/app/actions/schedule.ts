@@ -5,7 +5,7 @@ import { getDb } from '@/db/client';
 import { requireFamily } from '@/lib/auth/current-user';
 import { type ActionResult, guard, ValidationError } from '@/lib/errors';
 import { addSchedulePerson } from '@/lib/people';
-import { addShift, clearDayOff, copyDay, copyWeek, deleteShift, getWeek, setDayOff, updateShift } from '@/lib/schedule/repo';
+import { addShifts, clearDayOff, copyDay, copyWeek, deleteShift, getWeek, setDayOff, updateShift } from '@/lib/schedule/repo';
 import { addDays } from '@/lib/time';
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? '');
@@ -24,9 +24,10 @@ export async function saveShiftAction(form: FormData): Promise<ActionResult> {
     await db.transaction(async (tx) => {
       // "+ Someone new": add the name to the schedule list together with their first shift.
       const personId = newName ? await addSchedulePerson(tx, { name: newName }) : Number(form.get('personId'));
-      const input = { date: text(form, 'date'), personId, start: text(form, 'start'), end: text(form, 'end') };
-      if (id) await updateShift(tx, id, input);
-      else await addShift(tx, input);
+      const shift = { personId, start: text(form, 'start'), end: text(form, 'end') };
+      // Editing moves one shift to one day; a new shift goes on every day picked.
+      if (id) await updateShift(tx, id, { ...shift, date: text(form, 'date') });
+      else await addShifts(tx, form.getAll('date').map(String), shift);
     });
     if (newName) revalidatePath('/', 'layout');
     refresh();

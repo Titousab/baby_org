@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { schedulePeople } from '@/db/schema';
 import {
   addShift,
+  addShifts,
   clearDayOff,
   copyDay,
   copyWeek,
@@ -69,6 +70,24 @@ describe('shifts', () => {
     expect(await getDayShifts(db, '2026-11-24')).toMatchObject([{ id, personName: 'Selina', start: '09:00', end: '15:00' }]);
     await deleteShift(db, id);
     expect(await getDayShifts(db, '2026-11-24')).toEqual([]);
+  });
+
+  test('the same shift is added once on every day picked', async () => {
+    const { db, lauren } = await setup();
+    const ids = await addShifts(db, ['2026-11-23', '2026-11-24', '2026-11-25', '2026-11-25'], { personId: lauren, start: '08:00', end: '16:00' });
+    expect(ids).toHaveLength(3);
+    const week = plain(await getWeek(db, THIS_WEEK));
+    expect(week.slice(0, 3)).toEqual([['Lauren 08:00-16:00'], ['Lauren 08:00-16:00'], ['Lauren 08:00-16:00']]);
+    expect(week[3]).toEqual([]);
+  });
+
+  test('no days, a bad day or bad times add nothing', async () => {
+    const { db, lauren } = await setup();
+    const shift = { personId: lauren, start: '08:00', end: '16:00' };
+    await expect(addShifts(db, [], shift)).rejects.toMatchObject({ name: 'ValidationError', field: 'date', message: 'Pick at least one day.' });
+    await expect(addShifts(db, ['2026-11-23', 'not-a-date'], shift)).rejects.toMatchObject({ name: 'ValidationError', field: 'date' });
+    await expect(addShifts(db, ['2026-11-23', '2026-11-24'], { ...shift, end: '07:00' })).rejects.toMatchObject({ field: 'end' });
+    expect(plain(await getWeek(db, THIS_WEEK)).flat()).toEqual([]);
   });
 
   test('schedule people are listed by name with their colors', async () => {

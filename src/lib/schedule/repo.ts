@@ -64,12 +64,19 @@ export async function getDayShifts(db: DB, date: string): Promise<ShiftView[]> {
 }
 
 export async function addShift(db: DB, input: ShiftInput): Promise<number> {
-  check(input);
-  const [row] = await db
+  return (await addShifts(db, [input.date], input))[0];
+}
+
+/** Adds the same shift on each of `dates`, once per day. Every day is checked first, so it's all or nothing. */
+export async function addShifts(db: DB, dates: string[], shift: Omit<ShiftInput, 'date'>): Promise<number[]> {
+  const days = [...new Set(dates)];
+  if (!days.length) throw new ValidationError('Pick at least one day.', 'date');
+  for (const date of days) check({ ...shift, date });
+  const rows = await db
     .insert(shifts)
-    .values({ date: input.date, personId: input.personId, startTime: input.start, endTime: input.end })
+    .values(days.map((date) => ({ date, personId: shift.personId, startTime: shift.start, endTime: shift.end })))
     .returning({ id: shifts.id });
-  return row.id;
+  return rows.map((r) => r.id);
 }
 
 export async function updateShift(db: DB, id: number, input: ShiftInput): Promise<void> {
