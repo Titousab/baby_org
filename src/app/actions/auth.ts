@@ -3,7 +3,8 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getDb } from '@/db/client';
-import { SESSION_COOKIE, SESSION_DAYS, deleteSession } from '@/lib/auth/session';
+import { sessionCookieOptions } from '@/lib/auth/cookie';
+import { SESSION_COOKIE, deleteSession } from '@/lib/auth/session';
 import { signIn } from '@/lib/auth/sign-in';
 import type { ActionResult } from '@/lib/errors';
 
@@ -15,13 +16,7 @@ export async function signInAction(_prev: ActionResult | null, form: FormData): 
   const result = await signIn(await getDb(), email, password);
   if (!result.ok) return { ok: false, message: result.message };
 
-  (await cookies()).set(SESSION_COOKIE, result.token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: SESSION_DAYS * 24 * 60 * 60,
-  });
+  (await cookies()).set(SESSION_COOKIE, result.token, sessionCookieOptions());
   redirect('/');
 }
 

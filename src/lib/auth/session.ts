@@ -5,8 +5,9 @@ import type { DB } from '@/db/types';
 
 export type SessionUser = { id: number; name: string; email: string; role: 'family' | 'caretaker' };
 
-export { SESSION_COOKIE } from './cookie';
-export const SESSION_DAYS = 365;
+import { SESSION_DAYS } from './cookie';
+
+export { SESSION_COOKIE, SESSION_DAYS } from './cookie';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
