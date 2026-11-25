@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { runMigrations } from '@/db/migrate';
 import type { DB } from '@/db/types';
 import { ensureOwner, ensurePresetPeople, ensureSettings } from '@/lib/bootstrap';
+import { ensurePlaces } from '@/lib/classes/places-seed';
 
 type Env = { [key: string]: string | undefined };
 
@@ -14,6 +15,7 @@ export async function migrateAndBootstrap(db: DB, env: Env): Promise<{ migrated:
   await runMigrations(db);
   await ensureSettings(db);
   await ensurePresetPeople(db);
+  await ensurePlaces(db);
   const owner = await ensureOwner(db, { OWNER_NAME: env.OWNER_NAME, OWNER_EMAIL: env.OWNER_EMAIL, OWNER_PASSWORD: env.OWNER_PASSWORD });
   return { migrated: true, owner };
 }

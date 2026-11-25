@@ -1,5 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { ensureOwner, ensurePresetPeople, ensureSettings } from '@/lib/bootstrap';
+import { ensurePlaces } from '@/lib/classes/places-seed';
 import { runMigrations } from './migrate';
 import * as schema from './schema';
 import type { DB } from './types';
@@ -28,6 +29,7 @@ async function open(): Promise<DB> {
   await runMigrations(db);
   await ensureSettings(db);
   await ensurePresetPeople(db);
+  await ensurePlaces(db);
   await ensureOwner(db, {
     OWNER_NAME: process.env.OWNER_NAME,
     OWNER_EMAIL: process.env.OWNER_EMAIL,
