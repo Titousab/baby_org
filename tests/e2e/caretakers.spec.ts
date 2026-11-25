@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
-import { signIn, signOut } from './helpers';
+import { goNextWeek, signIn, signOut } from './helpers';
 
 const gapStatus = (page: Page) => page.locator('.cover-row .status');
 const dayRow = (page: Page, dow: string) => page.locator('li.day').filter({ has: page.locator('.day-name', { hasText: dow }) });
@@ -10,7 +10,7 @@ test('planning a week: add, fill a gap, copy the week, mark a day off', async ({
   await expect(page).toHaveURL(/\/calendar\/caretakers/);
 
   // Next week starts empty
-  await page.getByLabel('Next week').click();
+  await goNextWeek(page);
   await expect(page.locator('.pillnav-label b')).toHaveText('Next week');
   await expect(page.getByText('Nothing planned yet')).toBeVisible();
 
@@ -43,7 +43,7 @@ test('planning a week: add, fill a gap, copy the week, mark a day off', async ({
   await page.getByRole('button', { name: 'Copy week' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Copy schedule' }).click();
   await expect(page.getByText(/^Copied to /)).toBeVisible();
-  await page.getByLabel('Next week').click();
+  await goNextWeek(page);
   await expect(dayRow(page, 'Mon')).toContainText('8:00 am – 4:00 pm');
   await expect(dayRow(page, 'Mon')).toContainText('4:00 – 6:30 pm');
 
@@ -64,8 +64,23 @@ test('Today shows who is with Ezra and links to the schedule', async ({ page }) 
   await expect(page).toHaveURL(/\/calendar\/caretakers/);
 });
 
-// Needs the people screen from Task 10 to create a caretaker account.
-test.fixme('a caretaker sees the schedule but cannot change it', async ({ page }) => {
+test("Juju's House is ready to pick, and someone new can be added from the shift sheet", async ({ page }) => {
+  await signIn(page);
+  await page.goto('/calendar/caretakers');
+  for (let i = 0; i < 3; i++) await goNextWeek(page);
+  await expect(page.getByText('Nothing planned yet')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Or add one shift' }).click();
+  const sheet = page.getByRole('dialog');
+  await expect(sheet.getByText("Juju's House", { exact: true })).toBeVisible();
+  await sheet.getByRole('button', { name: '+ Someone new' }).click();
+  await sheet.getByLabel('Their name').fill('Sitter Ana');
+  await sheet.locator('.opt span', { hasText: /^Wed / }).click();
+  await sheet.getByRole('button', { name: 'Save shift' }).click();
+  await expect(dayRow(page, 'Wed')).toContainText('Sitter Ana');
+});
+
+test('a caretaker sees the schedule but cannot change it', async ({ page }) => {
   await signIn(page);
   await page.getByRole('button', { name: 'Family and account' }).click();
   await page.getByRole('button', { name: 'Add someone' }).click();

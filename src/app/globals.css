@@ -333,3 +333,12 @@ input[type="password"],input[type="date"]{width:100%;min-height:50px;padding:12p
 button.day-name{border:none;background:none;padding:0;text-align:left;color:var(--ink);text-decoration:underline dotted var(--line-strong);text-underline-offset:4px}
 div.shift{cursor:default}
 div.shift:hover{background:none}
+.h3{margin:0 0 10px;font-family:var(--font-display);font-size:18px;font-weight:600}
+.people li{padding:0}
+.person-row{display:flex;align-items:center;gap:12px;width:100%;padding:10px 0;border:none;background:none;text-align:left}
+.person-text{display:flex;flex-direction:column;line-height:1.3;min-width:0}
+.person-text small{color:var(--ink-2);font-size:14px;overflow-wrap:anywhere}
+.confirm{margin-top:14px;padding:14px;border-radius:var(--r-md);background:var(--warn-soft);color:var(--warn-ink)}
+.confirm p{margin:0 0 8px;font-weight:600}
+.danger-bg{background:var(--warn);color:var(--surface)}
+.btn-text.center{display:block;margin-inline:auto}

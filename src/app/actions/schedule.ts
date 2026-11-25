@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { getDb } from '@/db/client';
 import { requireFamily } from '@/lib/auth/current-user';
 import { type ActionResult, guard, ValidationError } from '@/lib/errors';
+import { addSchedulePerson } from '@/lib/people';
 import { addShift, clearDayOff, copyWeek, deleteShift, getWeek, setDayOff, updateShift } from '@/lib/schedule/repo';
 import { addDays } from '@/lib/time';
 
@@ -18,10 +19,16 @@ export async function saveShiftAction(form: FormData): Promise<ActionResult> {
   return guard(async () => {
     await requireFamily();
     const db = await getDb();
-    const input = { date: text(form, 'date'), personId: Number(form.get('personId')), start: text(form, 'start'), end: text(form, 'end') };
+    const newName = text(form, 'newName').trim();
     const id = Number(form.get('id'));
-    if (id) await updateShift(db, id, input);
-    else await addShift(db, input);
+    await db.transaction(async (tx) => {
+      // "+ Someone new": add the name to the schedule list together with their first shift.
+      const personId = newName ? await addSchedulePerson(tx, { name: newName }) : Number(form.get('personId'));
+      const input = { date: text(form, 'date'), personId, start: text(form, 'start'), end: text(form, 'end') };
+      if (id) await updateShift(tx, id, input);
+      else await addShift(tx, input);
+    });
+    if (newName) revalidatePath('/', 'layout');
     refresh();
   });
 }

@@ -1,5 +1,5 @@
 import { mkdirSync } from 'node:fs';
-import { ensureOwner, ensureSettings } from '@/lib/bootstrap';
+import { ensureOwner, ensurePresetPeople, ensureSettings } from '@/lib/bootstrap';
 import { runMigrations } from './migrate';
 import * as schema from './schema';
 import type { DB } from './types';
@@ -23,6 +23,7 @@ async function open(): Promise<DB> {
   const db = drizzle(new PGlite(dir), { schema });
   await runMigrations(db);
   await ensureSettings(db);
+  await ensurePresetPeople(db);
   await ensureOwner(db, {
     OWNER_NAME: process.env.OWNER_NAME,
     OWNER_EMAIL: process.env.OWNER_EMAIL,

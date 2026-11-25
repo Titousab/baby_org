@@ -19,11 +19,12 @@ export function ShiftSheet({ draft, days, people, onClose }: Props) {
   const [start, setStart] = useState(draft.start);
   const [end, setEnd] = useState(draft.end);
   const editing = Boolean(draft.id);
+  const [addingNew, setAddingNew] = useState(false);
 
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
-    if (!form.get('personId')) {
+    if (!form.get('personId') && !String(form.get('newName') ?? '').trim()) {
       setError({ message: 'Pick who is covering this shift.', field: 'who' });
       return;
     }
@@ -66,8 +67,20 @@ export function ShiftSheet({ draft, days, people, onClose }: Props) {
                 </span>
               </label>
             ))}
+            {!editing && !addingNew && (
+              <button type="button" className="food-chip" onClick={() => setAddingNew(true)}>
+                + Someone new
+              </button>
+            )}
           </div>
+          {addingNew && (
+            <div className="field" style={{ marginTop: 10, marginBottom: 0 }}>
+              <label htmlFor="f-newname">Their name</label>
+              <input type="text" id="f-newname" name="newName" autoComplete="off" placeholder="A sitter, a daycare…" />
+            </div>
+          )}
           <FieldError error={error} field="who" />
+          <FieldError error={error} field="name" />
         </fieldset>
         <fieldset className="field">
           <legend>Which day?</legend>
@@ -98,7 +111,7 @@ export function ShiftSheet({ draft, days, people, onClose }: Props) {
         <p className="calc" style={{ marginTop: 16 }}>
           {valid ? `${fmtDuration(toMin(end) - toMin(start))} shift` : 'End time is before start time'}
         </p>
-        <FormMessage error={error} fields={['who', 'date', 'start', 'end']} />
+        <FormMessage error={error} fields={['who', 'name', 'date', 'start', 'end']} />
         <div className="sheet-actions">
           {editing && (
             <button type="button" className="btn-text danger" onClick={remove} disabled={pending}>

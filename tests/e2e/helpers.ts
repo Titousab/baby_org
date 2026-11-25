@@ -12,7 +12,16 @@ export async function signIn(page: Page, email = OWNER.email, password = OWNER.p
 }
 
 export async function signOut(page: Page) {
-  await page.getByRole('button', { name: 'Family and account' }).click();
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  // Use the account sheet if it's already open; otherwise open it.
+  if (!(await page.getByRole('dialog').count())) await page.getByRole('button', { name: 'Family and account' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Sign out' }).click();
   await expect(page).toHaveURL(/\/signin$/);
+}
+
+/** Go one week forward on the schedule and wait for the new week to show. */
+export async function goNextWeek(page: Page) {
+  const range = page.locator('.pillnav-label span');
+  const before = await range.textContent();
+  await page.getByLabel('Next week').click();
+  await expect(range).not.toHaveText(before ?? '');
 }
