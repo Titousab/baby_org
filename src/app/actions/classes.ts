@@ -8,6 +8,7 @@ import { clearAgeOverride, deleteManualClass, saveManualClass, setAgeOverride } 
 import { markWatchSeen, runSync, webFetcher } from '@/lib/classes/sync';
 import { PERSON_COLORS } from '@/lib/colors';
 import { type ActionResult, guard, ValidationError } from '@/lib/errors';
+import { normalizeWebUrl } from '@/lib/url';
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? '').trim();
 const months = (form: FormData, key: string) => {
@@ -90,15 +91,9 @@ export async function addPlaceAction(form: FormData): Promise<ActionResult> {
     await requireFamily();
     const name = text(form, 'name');
     if (!name) throw new ValidationError('Add the place name.', 'name');
-    let website = text(form, 'websiteUrl');
-    if (website && !/^https?:\/\//i.test(website)) website = `https://${website}`;
-    if (website) {
-      try {
-        new URL(website);
-      } catch {
-        throw new ValidationError('That website address doesn’t look right.', 'websiteUrl');
-      }
-    }
+    const typed = text(form, 'websiteUrl');
+    const website = typed ? normalizeWebUrl(typed) : null;
+    if (typed && !website) throw new ValidationError("That website address doesn't look right.", 'websiteUrl');
     const color = (PERSON_COLORS as readonly string[]).includes(text(form, 'color')) ? text(form, 'color') : 'sage';
     const slug = `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${Date.now().toString(36)}`;
     await (await getDb()).insert(places).values({

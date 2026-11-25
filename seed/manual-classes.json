@@ -1,5 +1,5 @@
 {
-  "about": "Starting hand-typed classes, transcribed by Claude on 2026-11-25 from screenshots the owner shared: The Bramble's Sawyer calendar (December 2026), Good Day Play Cafe's classes page, and Treasure Trunk Theatre's Park Slope schedule on Sawyer. Ages are in months, taken exactly as the source states them. Times are America/New_York. 'place' must match a seeded place name. The seed command upserts on (place, title, first_date, start_time), so it is safe to re-run.",
+  "about": "Hand-typed classes, transcribed by Claude from screenshots the owner shared (first batch 2026-11-25: The Bramble's December calendar, Good Day Play Cafe's classes page, Treasure Trunk Theatre's Park Slope schedule). Ages are in months, taken exactly as the source states them. Times are America/New_York. 'place' must match a seeded place name. Each record is added to the app once, on the first deploy that includes it (identified by place, title, first_date and start_time); after that, edits and deletions are made in the app, and a deleted class is never brought back. To add classes, append new records.",
   "classes": [
     {
       "place": "The Bramble",

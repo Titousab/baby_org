@@ -10,13 +10,9 @@ import { requireUser } from '@/lib/auth/current-user';
 import { isFamily } from '@/lib/auth/permissions';
 import { listClasses, listPlaces } from '@/lib/classes/list';
 import { isSyncDue, runSync, webFetcher } from '@/lib/classes/sync';
+import { placeStatusLine, whenLabel } from '@/lib/classes/view';
 import { getSettings } from '@/lib/settings';
-import { addDays, fmtTime, minutesNowNY, monthDay, todayNY } from '@/lib/time';
-
-/** "6:02 am" for today, otherwise "Nov 24". */
-function whenLabel(at: Date, today: string): string {
-  return todayNY(at) === today ? fmtTime(minutesNowNY(at)) : monthDay(todayNY(at));
-}
+import { addDays, minutesNowNY, todayNY } from '@/lib/time';
 
 export default async function ClassesPage() {
   const user = await requireUser();
@@ -45,20 +41,14 @@ export default async function ClassesPage() {
   ]);
 
   const places: PlaceView[] = placeRows.map((p) => {
-    const source = sourceRows.find((s) => s.placeId === p.id);
-    let statusLine = 'Typed in by hand';
-    if (source) {
-      if (source.lastError) statusLine = source.lastError;
-      else if (source.lastSuccessAt) statusLine = `Updates automatically · checked ${whenLabel(source.lastSuccessAt, today)}`;
-      else statusLine = 'Updates automatically · not checked yet';
-    }
+    const source = sourceRows.find((s) => s.placeId === p.id) ?? null;
     return {
       id: p.id,
       name: p.name,
       color: p.color,
       kind: p.kind,
       auto: Boolean(source),
-      statusLine,
+      statusLine: placeStatusLine(source, today),
       hasError: Boolean(source?.lastError),
       watchUrl: p.watchUrl,
       changed: Boolean(p.watchChangedAt),

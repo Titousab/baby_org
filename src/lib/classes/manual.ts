@@ -3,6 +3,7 @@ import { ageOverrides, manualClasses } from '@/db/schema';
 import type { DB } from '@/db/types';
 import { ValidationError } from '@/lib/errors';
 import { addDays } from '@/lib/time';
+import { normalizeWebUrl } from '@/lib/url';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -52,6 +53,8 @@ export async function saveManualClass(db: DB, input: ManualClassInput): Promise<
   if (input.ageMin !== null && input.ageMax !== null && input.ageMax < input.ageMin) {
     throw new ValidationError('The oldest age has to be at least the youngest.', 'ageMax');
   }
+  const bookingUrl = input.bookingUrl?.trim() ? normalizeWebUrl(input.bookingUrl) : null;
+  if (input.bookingUrl?.trim() && !bookingUrl) throw new ValidationError("That link doesn't look like a web address.", 'bookingUrl');
   if (input.untilDate && (!DATE.test(input.untilDate) || input.untilDate < input.firstDate)) {
     throw new ValidationError('The last day has to be on or after the first day.', 'untilDate');
   }
@@ -66,7 +69,7 @@ export async function saveManualClass(db: DB, input: ManualClassInput): Promise<
     ageMax: input.ageMax,
     priceText: input.priceText?.trim() || null,
     note: input.note?.trim() || null,
-    bookingUrl: input.bookingUrl?.trim() || null,
+    bookingUrl,
     repeatsWeekly: input.repeatsWeekly,
     untilDate: input.repeatsWeekly ? input.untilDate || null : null,
   };
