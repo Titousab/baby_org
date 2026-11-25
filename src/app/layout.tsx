@@ -8,6 +8,7 @@ const figtree = Figtree({ subsets: ['latin'], weight: ['400', '500', '600', '700
 export const metadata: Metadata = {
   title: 'Ezra',
   description: "Ezra's day, classes and caretakers, for his family.",
+  appleWebApp: { capable: true, title: 'Ezra', statusBarStyle: 'default' },
 };
 
 export const viewport: Viewport = {
