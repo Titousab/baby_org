@@ -63,7 +63,7 @@ Differences from the mockup that are already decided:
 
 - **Hosting:** owner's existing Vercel account on the free Hobby plan (personal, non-commercial use). Hobby cron jobs run at most once a day.
 - **Web address (decided by owner):** the free `*.vercel.app` address, set by the Vercel project name at import (for example `ezras-day.vercel.app`, depending on what's available). It must not change after people install the app, because the home-screen icon and sign-in are tied to it.
-- **Database:** Postgres through Vercel's Marketplace (Neon, free tier). Connection env vars are injected by Vercel.
+- **Database (changed by owner, 2026-11-25):** Postgres on the owner's existing **Railway** account (Pro plan), so the family's data is under the owner's own control. Vercel reaches it through Railway's public connection address (`DATABASE_PUBLIC_URL`), set in Vercel as `DATABASE_URL`, over an encrypted connection.
 - **iPhone home-screen apps don't share cookies with Safari.** People must sign in from inside the installed app, so sessions must last a long time (see §5).
 - **Time zone:** everything is America/New_York. "Today", gap checks and class times all use that zone, whatever zone the phone is in.
 - **Repo:** `github.com/Titousab/baby_org` (currently a README plus these docs). Vercel deploys from `main`.
@@ -94,11 +94,11 @@ The UI hides controls a caretaker can't use, and the server enforces the same ru
 
 - Header "Ezra's day" with ‹ › day arrows. The › arrow is disabled on today.
 - "With Ezra now" card (today only) shows the current shift, when it ends and who is next, from the schedule. Tapping it opens Calendar → Caretakers.
-- Progress line: "N of 6 logged", plus total nap length.
+- Progress line: "N of 6 logged" (the nap tile counts once there's at least one nap), plus total nap length.
 - Six tiles in two columns. An empty tile opens its add sheet. A filled tile shows the value and who saved it, and opens an edit sheet with Remove.
   - Woke up: one time.
   - Breakfast, Lunch, Snack, Dinner: what he ate (free text, with chips for recently used foods), how much (All, Most, Some, A little, None) and time.
-  - Nap: fell asleep and woke up times, with live duration. **One nap per day in v1.** The mockup's single-slot model is what's approved.
+  - Nap: **as many naps as he takes** (changed by owner, 2026-11-25). The tile shows total sleep, plus the times when there's one nap or "N naps" when there are more. Tapping it lists the day's naps (each editable or removable) with "Add another nap", or goes straight to the form when there are none. Each nap has fell asleep and woke up times, with live duration.
 - "Anything else": list of free entries sorted by time. "+ Add something else" opens a sheet with kind, details and time.
 - Changes by others show up when the app is reopened or comes back into focus, and every 60 seconds while it's open. Live push isn't needed.
 
@@ -149,13 +149,13 @@ The owner left the technical approach to us.
 
 | Approach | Trade-off | Verdict |
 |---|---|---|
-| **Next.js (App Router, TypeScript) on Vercel + Neon Postgres** | One platform the owner already has; free; deploys from GitHub | **Chosen** |
+| **Next.js (App Router, TypeScript) on Vercel + Postgres** | Deploys from GitHub; the database was first Neon through Vercel, then moved to the owner's Railway account at the owner's request | **Chosen** |
 | Next.js + Supabase (auth + database) | Ready-made auth, but another account, and its auth features aren't needed | Rejected |
-| Node server + Postgres on Railway | Simple and long-running, but about $5/month ongoing | Rejected |
+| Node server + Postgres on Railway | Simple and long-running; the owner already pays for Railway, so its Postgres now holds the data, but the app itself stays on Vercel | Database only |
 
 ### 7.2 Stack and structure
 
-- **Next.js** App Router with server components and server actions, **TypeScript**, **Drizzle ORM** with the Neon serverless driver, and migrations checked into the repo.
+- **Next.js** App Router with server components and server actions, **TypeScript**, **Drizzle ORM** with node-postgres (`pg`) in production and PGlite in dev and tests, and migrations checked into the repo.
 - **Auth:** small in-house module, not a framework. Password hashes with bcrypt (cost ≥ 12) or argon2id, plus a `sessions` table holding a SHA-256 hash of a random token. Middleware redirects signed-out requests to `/signin`.
 - **Styling:** port the mockup's CSS tokens and components (light and dark tokens, `prefers-color-scheme`). Fonts are self-hosted with `next/font` (Fredoka, Figtree).
 - **PWA:** web app manifest (name "Ezra", `display: standalone`, theme colors), app icons including `apple-touch-icon`, and iOS status-bar meta. No service worker or offline mode in v1.
@@ -204,7 +204,8 @@ Same sync pipeline, with places marked as ideas rather than connected places. Sh
 - `sessions`: id, user_id, token_hash, created_at, last_used_at, expires_at
 - `login_attempts`: email, count, locked_until
 - `schedule_people`: id, name, color (one of the mockup's person colors), user_id (nullable)
-- `log_slots`: date, slot (`wake`, `breakfast`, `nap`, `lunch`, `snack`, `dinner`), time, end_time (nap), food, amount, updated_by, updated_at. Unique on (date, slot).
+- `log_slots`: date, slot (`wake`, `breakfast`, `lunch`, `snack`, `dinner`), time, food, amount, updated_by, updated_at. Unique on (date, slot).
+- `naps`: id, date, start_time, end_time, created_by, updated_by, timestamps. Several per day.
 - `log_notes`: id, date, time, kind, text, created_by, updated_by, timestamps
 - `shifts`: id, date, schedule_person_id, start_time, end_time, timestamps. Shifts must end after they start and can't cross midnight.
 - `days_off`: date, label
@@ -227,7 +228,7 @@ Ship as soon as phase 1 works, so the family can start logging and scheduling. L
 ## 8. Setup the owner will do (checklist delivered at the end)
 
 1. Vercel: import `baby_org` from GitHub, naming the project so the address reads well (for example `ezras-day` → `ezras-day.vercel.app`).
-2. Vercel → Storage: add a Neon Postgres database to the project (free).
+2. Railway: add a PostgreSQL database to a project, and copy its public connection address into Vercel as `DATABASE_URL`.
 3. Vercel → Settings → Environment Variables: add `CRON_SECRET` (the builder supplies a value or tells the owner how to generate one).
 4. Run the migration and the one-time seed for the owner's own account (exact commands provided).
 5. In the app: set Ezra's birthdate, add Mom, Lauren and Selina, then text each their starting password and the link, with home-screen instructions.
