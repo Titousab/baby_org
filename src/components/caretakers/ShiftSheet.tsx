@@ -21,6 +21,17 @@ export function ShiftSheet({ draft, days, people, onClose }: Props) {
   const [end, setEnd] = useState(draft.end);
   const editing = Boolean(draft.id);
   const [addingNew, setAddingNew] = useState(false);
+  // A new shift can go on several days at once; an existing one belongs to one day.
+  const [picked, setPicked] = useState(() => new Set([draft.date]));
+  const n = editing ? 1 : picked.size;
+
+  function toggle(date: string) {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(date)) next.add(date);
+      return next;
+    });
+  }
 
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -29,11 +40,15 @@ export function ShiftSheet({ draft, days, people, onClose }: Props) {
       setError({ message: 'Pick who is covering this shift.', field: 'who' });
       return;
     }
+    if (!editing && !picked.size) {
+      setError({ message: 'Pick at least one day.', field: 'date' });
+      return;
+    }
     startTransition(async () => {
       const r = await callAction(() => saveShiftAction(form));
       if (r.ok) {
         onClose();
-        toast(editing ? 'Shift updated' : 'Shift added');
+        toast(editing ? 'Shift updated' : n === 1 ? 'Shift added' : `${n} shifts added`);
       } else setError(r);
     });
   }
@@ -88,12 +103,32 @@ export function ShiftSheet({ draft, days, people, onClose }: Props) {
           <div className="opts">
             {days.map((d) => (
               <label key={d.date} className="opt">
-                <input type="radio" name="date" id={`day-${d.date}`} value={d.date} defaultChecked={d.date === draft.date} />
+                {editing ? (
+                  <input type="radio" name="date" id={`day-${d.date}`} value={d.date} defaultChecked={d.date === draft.date} />
+                ) : (
+                  <input
+                    type="checkbox"
+                    name="date"
+                    id={`day-${d.date}`}
+                    value={d.date}
+                    checked={picked.has(d.date)}
+                    onChange={() => toggle(d.date)}
+                  />
+                )}
                 <span>
                   {d.dow} {d.dayNum}
                 </span>
               </label>
             ))}
+            {!editing && (
+              <button
+                type="button"
+                className="food-chip"
+                onClick={() => setPicked(new Set(days.filter((d) => !d.weekend && !d.dayOff).map((d) => d.date)))}
+              >
+                Weekdays
+              </button>
+            )}
           </div>
           <FieldError error={error} field="date" />
         </fieldset>
@@ -110,7 +145,7 @@ export function ShiftSheet({ draft, days, people, onClose }: Props) {
           </div>
         </div>
         <p className="calc" style={{ marginTop: 16 }}>
-          {valid ? `${fmtDuration(toMin(end) - toMin(start))} shift` : 'End time is before start time'}
+          {valid ? `${fmtDuration(toMin(end) - toMin(start))} shift${n > 1 ? ` × ${n} days` : ''}` : 'End time is before start time'}
         </p>
         <FormMessage error={error} fields={['who', 'name', 'date', 'start', 'end']} />
         <div className="sheet-actions">
