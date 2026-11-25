@@ -107,3 +107,43 @@ test('a caretaker sees the schedule but cannot change it', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Fill' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^Day options/ })).toHaveCount(0);
 });
+
+test('copying one day onto other days of the week', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/calendar/caretakers');
+  for (let i = 0; i < 4; i++) await goNextWeek(page);
+  await expect(page.getByText('Nothing planned yet')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Or add one shift' }).click();
+  const sheet = page.getByRole('dialog');
+  await sheet.getByText('Dad', { exact: true }).click();
+  await sheet.locator('.opt span', { hasText: /^Mon / }).click();
+  await sheet.getByLabel('Starts').fill('08:00');
+  await sheet.getByLabel('Ends').fill('16:00');
+  await sheet.getByRole('button', { name: 'Save shift' }).click();
+  await expect(dayRow(page, 'Mon')).toContainText('8:00 am – 4:00 pm');
+
+  // An empty day offers no copy
+  await page.getByRole('button', { name: /^Day options for Tue/ }).click();
+  await expect(page.getByRole('dialog').getByRole('button', { name: 'Copy day' })).toHaveCount(0);
+  await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
+
+  // Picking nothing is refused
+  await page.getByRole('button', { name: /^Day options for Mon/ }).click();
+  const day = page.getByRole('dialog');
+  await day.getByRole('button', { name: 'Copy day' }).click();
+  await expect(day.getByText('Pick at least one day.')).toBeVisible();
+
+  await day.getByRole('checkbox', { name: /^Wed/ }).check();
+  await day.getByRole('checkbox', { name: /^Thu/ }).check();
+  await day.getByRole('button', { name: 'Copy day' }).click();
+  await expect(page.getByText('Copied Mon to Wed and Thu')).toBeVisible();
+  await expect(dayRow(page, 'Wed')).toContainText('8:00 am – 4:00 pm');
+  await expect(dayRow(page, 'Thu')).toContainText('8:00 am – 4:00 pm');
+  await expect(dayRow(page, 'Tue')).not.toContainText('Dad');
+
+  // A day that now has shifts warns before being replaced
+  await page.getByRole('button', { name: /^Day options for Mon/ }).click();
+  await expect(page.getByRole('dialog').getByRole('checkbox', { name: /^Wed/ })).toBeVisible();
+  await expect(page.getByRole('dialog')).toContainText('has 1 shift · will be replaced');
+});
