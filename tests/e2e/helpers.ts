@@ -7,7 +7,8 @@ export async function signIn(page: Page, email = OWNER.email, password = OWNER.p
   await page.getByLabel('Your email').fill(email);
   await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(/\/$/);
+  // The dev server may compile the Today page on first visit.
+  await expect(page).toHaveURL(/\/$/, { timeout: 30_000 });
 }
 
 export async function signOut(page: Page) {

@@ -7,7 +7,9 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
-  timeout: 60_000,
+  timeout: 90_000,
+  // `next dev` compiles each route on first visit, which can take several seconds.
+  expect: { timeout: 15_000 },
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: 'retain-on-failure',
