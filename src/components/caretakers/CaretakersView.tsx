@@ -9,7 +9,7 @@ import { useToast } from '@/components/Toast';
 import type { CoverageRules, ShiftView } from '@/lib/schedule/coverage';
 import { fmtHours, fmtRange, fromMin, toMin } from '@/lib/time';
 import { CopyWeekSheet } from './CopyWeekSheet';
-import { DayOffSheet } from './DayOffSheet';
+import { DaySheet } from './DaySheet';
 import { barSpan, coverageLine, scaleTicks } from './scale';
 import { ShiftSheet, type ShiftDraft } from './ShiftSheet';
 import type { DayData, Person } from './types';
@@ -82,7 +82,7 @@ export function CaretakersView(p: Props) {
         <ShiftSheet key={JSON.stringify(open.draft)} draft={open.draft} days={p.days} people={p.people} onClose={close} />
       )}
       {open?.kind === 'copy' && <CopyWeekSheet weekStart={p.weekStart} laterWeeks={p.laterWeeks} days={p.days} onClose={close} />}
-      {open?.kind === 'dayoff' && <DayOffSheet key={open.day.date} day={open.day} onClose={close} />}
+      {open?.kind === 'dayoff' && <DaySheet key={open.day.date} day={open.day} days={p.days} onClose={close} />}
     </>
   );
 

@@ -44,6 +44,7 @@ describe('a caretaker cannot change family-only things, even by calling the serv
     expect(await schedule.saveShiftAction(shift)).toEqual(DENIED);
     expect(await schedule.deleteShiftAction(1)).toEqual(DENIED);
     expect(await schedule.copyWeekAction(form({ src: '2026-11-23', target: 'next', mode: 'replace' }))).toEqual(DENIED);
+    expect(await schedule.copyDayAction(form({ src: '2026-11-23', to: ['2026-11-25'] }))).toEqual(DENIED);
     expect(await schedule.copyPrevWeekAction('2026-11-30')).toEqual(DENIED);
     expect(await schedule.setDayOffAction(form({ date: '2026-11-26', label: 'Thanksgiving' }))).toEqual(DENIED);
     expect(await schedule.clearDayOffAction('2026-11-26')).toEqual(DENIED);

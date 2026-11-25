@@ -5,7 +5,7 @@ import { getDb } from '@/db/client';
 import { requireFamily } from '@/lib/auth/current-user';
 import { type ActionResult, guard, ValidationError } from '@/lib/errors';
 import { addSchedulePerson } from '@/lib/people';
-import { addShift, clearDayOff, copyWeek, deleteShift, getWeek, setDayOff, updateShift } from '@/lib/schedule/repo';
+import { addShift, clearDayOff, copyDay, copyWeek, deleteShift, getWeek, setDayOff, updateShift } from '@/lib/schedule/repo';
 import { addDays } from '@/lib/time';
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? '');
@@ -53,6 +53,14 @@ export async function copyWeekAction(form: FormData): Promise<ActionResult> {
     else weeks = form.getAll('pick').map(String);
     if (!weeks.length) throw new ValidationError('Pick at least one week.', 'pick');
     await copyWeek(await getDb(), src, weeks, mode);
+    refresh();
+  });
+}
+
+export async function copyDayAction(form: FormData): Promise<ActionResult> {
+  return guard(async () => {
+    await requireFamily();
+    await copyDay(await getDb(), text(form, 'src'), form.getAll('to').map(String));
     refresh();
   });
 }

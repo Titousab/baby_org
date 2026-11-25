@@ -6,9 +6,11 @@ import { clearDayOffAction, setDayOffAction } from '@/app/actions/schedule';
 import { FieldError, type FormError, FormMessage } from '@/components/FieldError';
 import { Sheet } from '@/components/Sheet';
 import { useToast } from '@/components/Toast';
+import { CopyDayForm } from './CopyDayForm';
 import type { DayData } from './types';
 
-export function DayOffSheet({ day, onClose }: { day: DayData; onClose: () => void }) {
+/** Day options: copy the day's shifts to other days, and mark or unmark it as a day off. */
+export function DaySheet({ day, days, onClose }: { day: DayData; days: DayData[]; onClose: () => void }) {
   const toast = useToast();
   const [error, setError] = useState<FormError>(null);
   const [pending, startTransition] = useTransition();
@@ -49,21 +51,29 @@ export function DayOffSheet({ day, onClose }: { day: DayData; onClose: () => voi
           </div>
         </>
       ) : (
-        <form onSubmit={submit} noValidate>
-          <p className="sheet-sub">On a day off, nobody needs to cover Ezra and copying weeks leaves it alone.</p>
-          <input type="hidden" name="date" value={day.date} />
-          <div className="field">
-            <label htmlFor="f-label">Mark as a day off</label>
-            <input type="text" id="f-label" name="label" placeholder="For example: Thanksgiving" autoComplete="off" />
-            <FieldError error={error} field="label" />
-          </div>
-          <FormMessage error={error} fields={['label']} />
-          <div className="sheet-actions">
-            <button type="submit" className="btn-primary" disabled={pending}>
-              Save
-            </button>
-          </div>
-        </form>
+        <>
+          {day.shifts.length > 0 && (
+            <>
+              <CopyDayForm day={day} days={days} onDone={onClose} />
+              <hr style={{ border: 0, borderTop: '1px solid var(--line)', margin: '20px 0 16px' }} />
+            </>
+          )}
+          <form onSubmit={submit} noValidate>
+            <p className="sheet-sub">On a day off, nobody needs to cover Ezra and copying leaves it alone.</p>
+            <input type="hidden" name="date" value={day.date} />
+            <div className="field">
+              <label htmlFor="f-label">Mark as a day off</label>
+              <input type="text" id="f-label" name="label" placeholder="For example: Thanksgiving" autoComplete="off" />
+              <FieldError error={error} field="label" />
+            </div>
+            <FormMessage error={error} fields={['label']} />
+            <div className="sheet-actions">
+              <button type="submit" className="btn-primary" disabled={pending}>
+                Save
+              </button>
+            </div>
+          </form>
+        </>
       )}
     </Sheet>
   );

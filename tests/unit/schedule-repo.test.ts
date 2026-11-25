@@ -3,6 +3,7 @@ import { schedulePeople } from '@/db/schema';
 import {
   addShift,
   clearDayOff,
+  copyDay,
   copyWeek,
   deleteShift,
   getDayShifts,
@@ -119,6 +120,58 @@ describe('copyWeek', () => {
     await expect(copyWeek(db, THIS_WEEK, [NEXT_WEEK, '2026-12-07', 'not-a-date', '2026-12-21'], 'replace')).rejects.toThrow();
     expect(plain(await getWeek(db, NEXT_WEEK)).flat()).toEqual([]);
     expect(plain(await getWeek(db, '2026-12-07')).flat()).toEqual([]);
+  });
+});
+
+describe('copyDay', () => {
+  const MON = '2026-11-23';
+
+  async function mondayPlan() {
+    const s = await setup();
+    await addShift(s.db, { date: MON, personId: s.lauren, start: '08:00', end: '16:00' });
+    await addShift(s.db, { date: MON, personId: s.selina, start: '16:00', end: '18:30' });
+    return s;
+  }
+
+  test('copies a day onto the days picked, replacing what was there', async () => {
+    const { db, selina } = await mondayPlan();
+    await addShift(db, { date: '2026-11-26', personId: selina, start: '09:00', end: '10:00' });
+    await copyDay(db, MON, ['2026-11-25', '2026-11-26']);
+    const week = plain(await getWeek(db, THIS_WEEK));
+    expect(week[2]).toEqual(['Lauren 08:00-16:00', 'Selina 16:00-18:30']);
+    expect(week[3]).toEqual(week[0]);
+    expect(week[1]).toEqual([]);
+  });
+
+  test('a day off is left alone', async () => {
+    const { db } = await mondayPlan();
+    await setDayOff(db, '2026-11-25', 'Family day');
+    await copyDay(db, MON, ['2026-11-25', '2026-11-26']);
+    const week = plain(await getWeek(db, THIS_WEEK));
+    expect(week[2]).toEqual([]);
+    expect(week[3]).toEqual(week[0]);
+  });
+
+  test('the source day and repeated days are copied once', async () => {
+    const { db } = await mondayPlan();
+    await copyDay(db, MON, [MON, '2026-11-25', '2026-11-25']);
+    const week = plain(await getWeek(db, THIS_WEEK));
+    expect(week[0]).toEqual(['Lauren 08:00-16:00', 'Selina 16:00-18:30']);
+    expect(week[2]).toEqual(week[0]);
+  });
+
+  test('refuses no days, bad dates and an empty source, changing nothing', async () => {
+    const { db, selina } = await mondayPlan();
+    await addShift(db, { date: '2026-11-25', personId: selina, start: '09:00', end: '10:00' });
+    await expect(copyDay(db, MON, [])).rejects.toMatchObject({ name: 'ValidationError', field: 'to', message: 'Pick at least one day.' });
+    await expect(copyDay(db, MON, ['2026-11-26', 'not-a-date'])).rejects.toMatchObject({ name: 'ValidationError' });
+    await expect(copyDay(db, '2026-11-24', ['2026-11-25'])).rejects.toMatchObject({
+      name: 'ValidationError',
+      message: 'There are no shifts on this day to copy.',
+    });
+    const week = plain(await getWeek(db, THIS_WEEK));
+    expect(week[2]).toEqual(['Selina 09:00-10:00']);
+    expect(week[3]).toEqual([]);
   });
 });
 
