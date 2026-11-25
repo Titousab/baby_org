@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, date, integer, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, check, date, integer, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core';
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -99,4 +99,6 @@ export const settings = pgTable('settings', {
   coverageDays: integer('coverage_days').array().notNull().default([1, 2, 3, 4, 5]),
   coverageStart: text('coverage_start').notNull().default('08:00'),
   coverageEnd: text('coverage_end').notNull().default('18:30'),
+  /** Preset schedule names (Juju's House) are added once, ever, so renaming or tidying them sticks. */
+  presetsSeeded: boolean('presets_seeded').notNull().default(false),
 });

@@ -114,6 +114,16 @@ describe('schedule people', () => {
     await expect(addSchedulePerson(db, { name: 'X', color: 'neon' })).rejects.toMatchObject({ field: 'color' });
   });
 
+  test("renaming Juju's House does not bring the preset back on the next deploy", async () => {
+    const { db } = await withOwner();
+    await ensurePresetPeople(db);
+    const juju = (await listPeople(db)).find((p) => p.name === "Juju's House");
+    await updateSchedulePerson(db, juju!.personId, { name: 'Juju daycare' });
+    await ensurePresetPeople(db);
+    const names = (await listPeople(db)).map((p) => p.name);
+    expect(names.filter((n) => n.startsWith('Juju'))).toEqual(['Juju daycare']);
+  });
+
   test("Juju's House is preset once", async () => {
     const { db } = await withOwner();
     await ensurePresetPeople(db);

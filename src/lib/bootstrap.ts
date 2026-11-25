@@ -13,11 +13,18 @@ export async function ensureSettings(db: DB): Promise<void> {
   await db.insert(settings).values({ id: 1 }).onConflictDoNothing();
 }
 
+/** Adds the preset names the first time only; after that the family is free to rename them. */
 export async function ensurePresetPeople(db: DB): Promise<void> {
-  for (const p of PRESET_PEOPLE) {
-    const [existing] = await db.select({ id: schedulePeople.id }).from(schedulePeople).where(eq(schedulePeople.name, p.name));
-    if (!existing) await db.insert(schedulePeople).values({ name: p.name, color: p.color });
-  }
+  await ensureSettings(db);
+  await db.transaction(async (tx) => {
+    const [row] = await tx.select({ seeded: settings.presetsSeeded }).from(settings).where(eq(settings.id, 1));
+    if (row?.seeded) return;
+    for (const p of PRESET_PEOPLE) {
+      const [existing] = await tx.select({ id: schedulePeople.id }).from(schedulePeople).where(eq(schedulePeople.name, p.name));
+      if (!existing) await tx.insert(schedulePeople).values({ name: p.name, color: p.color });
+    }
+    await tx.update(settings).set({ presetsSeeded: true }).where(eq(settings.id, 1));
+  });
 }
 
 type OwnerEnv = { OWNER_NAME?: string; OWNER_EMAIL?: string; OWNER_PASSWORD?: string };

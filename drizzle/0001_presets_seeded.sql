@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "presets_seeded" boolean DEFAULT false NOT NULL;
