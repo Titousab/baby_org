@@ -39,7 +39,7 @@ export function TodayTiles({ date, slots, naps, snacks, foods, colors, isToday, 
         )}
       </div>
       {open === 'nap' && (
-        <NapSheet key={`${date}-nap`} date={date} naps={naps} isToday={isToday} nowMin={nowMin} onClose={() => setOpen(null)} />
+        <NapSheet key={`${date}-nap`} date={date} naps={naps} isToday={isToday} onClose={() => setOpen(null)} />
       )}
       {open === 'snack' && <SnackSheet key={`${date}-snack`} date={date} snacks={snacks} foods={foods} onClose={() => setOpen(null)} />}
       {openTile && openTile.key !== 'nap' && openTile.key !== 'snack' && (

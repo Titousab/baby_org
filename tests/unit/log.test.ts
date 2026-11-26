@@ -166,7 +166,27 @@ describe('naps', () => {
     const at = new Date('2026-11-25T18:05:00Z');
     const results = await Promise.allSettled([startNapNow(db, mom, at), startNapNow(db, selina, at)]);
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const lost = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+    expect(lost.reason).toMatchObject({ name: 'ValidationError', message: "He's already asleep since 1:05 pm. Add when he woke up first." });
     expect((await getDayLog(db, TODAY)).naps).toHaveLength(1);
+  });
+
+  test('saving from a sheet opened before someone added the wake-up time keeps that time', async () => {
+    const { db, mom, selina } = await setup();
+    await startNapNow(db, mom, new Date('2026-11-25T18:05:00Z'));
+    const [nap] = (await getDayLog(db, TODAY)).naps;
+    await endNapNow(db, nap.id, selina, new Date('2026-11-25T19:30:00Z'));
+
+    // Mom's sheet still shows Woke up empty; she fixes the start and saves.
+    await expect(saveNap(db, { id: nap.id, date: TODAY, start: '13:00', end: '', loadedEnd: '' }, mom, TODAY)).rejects.toMatchObject({
+      name: 'ValidationError',
+      message: 'Someone already added when he woke up.',
+    });
+    expect((await getDayLog(db, TODAY)).naps[0]).toMatchObject({ start: '13:05', end: '14:30' });
+
+    // Clearing a wake-up time the sheet did show is still allowed.
+    await saveNap(db, { id: nap.id, date: TODAY, start: '13:05', end: '', loadedEnd: '14:30' }, selina, TODAY);
+    expect((await getDayLog(db, TODAY)).naps[0].end).toBeNull();
   });
 
   test('"asleep now" and "woke up now" use the time in New York', async () => {

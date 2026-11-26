@@ -84,7 +84,23 @@ export async function clearSlot(db: DB, date: string, slot: SlotKey): Promise<vo
   await db.delete(logSlots).where(and(eq(logSlots.date, date), eq(logSlots.slot, slot)));
 }
 
-type NapInput = { id?: number; date: string; start: string; end?: string };
+/** `loadedEnd` is the wake-up time the form showed when it opened, so a stale form can't erase a newer one. */
+type NapInput = { id?: number; date: string; start: string; end?: string; loadedEnd?: string };
+
+const ONE_RUNNING_PER_DAY = 'naps_one_running_per_day';
+const alreadyAsleep = (start: string) => new ValidationError(`He's already asleep since ${fmtTime(start)}. Add when he woke up first.`);
+
+/** True when the database refused a second running nap on the same day (two saves raced past the check). */
+function isSecondRunningNap(e: unknown): boolean {
+  const cause = (e as { cause?: { code?: string; constraint?: string; message?: string } } | null)?.cause;
+  return cause?.code === '23505' && (cause.constraint === ONE_RUNNING_PER_DAY || Boolean(cause.message?.includes(ONE_RUNNING_PER_DAY)));
+}
+
+async function runningNapStart(db: DB, date: string, exceptId?: number): Promise<string | undefined> {
+  const others = and(eq(naps.date, date), isNull(naps.endTime), exceptId ? ne(naps.id, exceptId) : undefined);
+  const [asleep] = await db.select({ start: naps.startTime }).from(naps).where(others).limit(1);
+  return asleep?.start;
+}
 
 /**
  * Adds a nap, or changes one when `id` is given. A day can have as many naps as he takes.
@@ -96,15 +112,24 @@ export async function saveNap(db: DB, input: NapInput, userId: number, today: st
   const end = input.end ? checkTime(input.end, 'end') : null;
   if (end && toMin(end) <= toMin(start)) throw new ValidationError('The nap has to end after it starts.', 'end');
   if (!end) {
-    const others = and(eq(naps.date, input.date), isNull(naps.endTime), input.id ? ne(naps.id, input.id) : undefined);
-    const [asleep] = await db.select({ start: naps.startTime }).from(naps).where(others).limit(1);
-    if (asleep) throw new ValidationError(`He's already asleep since ${fmtTime(asleep.start)}. Add when he woke up first.`);
+    const asleepSince = await runningNapStart(db, input.date, input.id);
+    if (asleepSince) throw alreadyAsleep(asleepSince);
+    if (input.id && !input.loadedEnd) {
+      const [saved] = await db.select({ end: naps.endTime }).from(naps).where(eq(naps.id, input.id));
+      if (saved?.end) throw new ValidationError('Someone already added when he woke up.');
+    }
   }
 
-  if (input.id) {
-    await db.update(naps).set({ startTime: start, endTime: end, updatedBy: userId, updatedAt: new Date() }).where(eq(naps.id, input.id));
-  } else {
-    await db.insert(naps).values({ date: input.date, startTime: start, endTime: end, createdBy: userId, updatedBy: userId });
+  try {
+    if (input.id) {
+      await db.update(naps).set({ startTime: start, endTime: end, updatedBy: userId, updatedAt: new Date() }).where(eq(naps.id, input.id));
+    } else {
+      await db.insert(naps).values({ date: input.date, startTime: start, endTime: end, createdBy: userId, updatedBy: userId });
+    }
+  } catch (e) {
+    if (!isSecondRunningNap(e)) throw e;
+    const asleepSince = await runningNapStart(db, input.date, input.id);
+    throw asleepSince ? alreadyAsleep(asleepSince) : e;
   }
 }
 

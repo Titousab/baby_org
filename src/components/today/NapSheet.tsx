@@ -9,20 +9,21 @@ import { useToast } from '@/components/Toast';
 import { type ActionResult } from '@/lib/errors';
 import { callAction } from '@/lib/call-action';
 import { type NapEntry, napMinutes, runningNap } from '@/lib/log-types';
-import { fmtDuration, fmtRange, fmtTime, fromMin, toMin } from '@/lib/time';
+import { fmtDuration, fmtRange, fmtTime, fromMin, minutesNowNY, toMin } from '@/lib/time';
 import { DEFAULT_NAP } from './tiles';
 import { useNowMin } from './useNowMin';
 
-type Props = { date: string; naps: NapEntry[]; isToday: boolean; nowMin: number; onClose: () => void };
+type Props = { date: string; naps: NapEntry[]; isToday: boolean; onClose: () => void };
 
 const STARTED = "Nap started. Everyone can see he's asleep.";
 const SAVED = 'Nap saved. Everyone can see it now.';
 
 /** The day's naps: the running one on today, else a list to pick from, or straight to the form when there are none yet. */
-export function NapSheet({ date, naps, isToday, nowMin, onClose }: Props) {
+export function NapSheet({ date, naps, isToday, onClose }: Props) {
   const running = runningNap(naps);
   const [editing, setEditing] = useState<NapEntry | 'new' | null>(isToday && running ? running : naps.length ? null : 'new');
-  const now = useNowMin(nowMin);
+  // The sheet only opens after a tap, so read the clock now rather than trusting the page's last load.
+  const now = useNowMin(minutesNowNY());
 
   if (editing) {
     return (
@@ -128,6 +129,7 @@ function NapForm({ date, nap, isToday, nowMin, someoneAsleep, canGoBack, onBack,
       <form onSubmit={submit} noValidate>
         <input type="hidden" name="date" value={date} />
         {nap && <input type="hidden" name="id" value={nap.id} />}
+        {nap && <input type="hidden" name="loadedEnd" value={nap.end ?? ''} />}
         <div className="row2">
           <div className="field">
             <label htmlFor="f-start">Fell asleep</label>

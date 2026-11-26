@@ -143,3 +143,28 @@ test('a nap on an earlier day can be saved without a wake-up time', async ({ pag
   await expect(napTile).toContainText('No wake-up time yet');
   await expect(napTile).not.toContainText('Asleep');
 });
+
+test('after the app sat in the background, nap times use the current time', async ({ page }) => {
+  // The phone's clock reads 3:42 pm in New York, whatever time the page was last loaded.
+  await page.clock.setFixedTime(new Date('2026-11-25T20:42:00Z'));
+  await signIn(page);
+  const napTile = page.getByRole('button', { name: /^Nap/ });
+
+  await page.getByRole('button', { name: /^(Add )?Nap/ }).click();
+  const sheet = page.getByRole('dialog');
+  await expect(sheet).toBeVisible();
+  const addAnother = sheet.getByRole('button', { name: 'Add another nap' });
+  if (await addAnother.isVisible()) await addAnother.click();
+  await expect(page.getByRole('dialog').getByLabel('Fell asleep')).toHaveValue('15:42');
+  await page.getByRole('dialog').getByLabel('Fell asleep').fill('15:00');
+  await page.getByRole('dialog').getByRole('button', { name: 'Save' }).click();
+  await expect(napTile).toContainText('since 3:00 pm');
+
+  // Coming back to the app updates the count straight away.
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await expect(napTile).toContainText('Asleep 42m');
+
+  await napTile.click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Remove' }).click();
+  await expect(page.getByText('Nap removed')).toBeVisible();
+});

@@ -41,7 +41,12 @@ export async function saveNapAction(form: FormData): Promise<ActionResult> {
   return guard(async () => {
     const user = await requireUser();
     const id = Number(form.get('id')) || undefined;
-    await saveNap(await getDb(), { id, date: text(form, 'date'), start: text(form, 'start'), end: text(form, 'end') }, user.id, todayNY());
+    await saveNap(
+      await getDb(),
+      { id, date: text(form, 'date'), start: text(form, 'start'), end: text(form, 'end'), loadedEnd: text(form, 'loadedEnd') },
+      user.id,
+      todayNY(),
+    );
     revalidatePath('/');
   });
 }
