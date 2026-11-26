@@ -136,6 +136,7 @@ button{cursor:pointer}
 .btn-dashed{border:1.5px dashed var(--line-strong);background:transparent;color:var(--ink-2)}
 .btn-dashed:hover,.btn-soft:hover{background:var(--surface-2)}
 .wide{width:100%}
+.nap-now{margin-bottom:16px}
 .btn-text{background:none;border:none;color:var(--primary-ink);font-weight:700;padding:10px 6px;font-size:15px}
 .danger{color:var(--warn-ink)}
 .btn-mini{min-height:34px;padding:0 14px;border-radius:999px;border:none;background:var(--surface);color:var(--warn-ink);font-size:14px;font-weight:700;flex:none}

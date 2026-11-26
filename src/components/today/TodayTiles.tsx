@@ -3,12 +3,13 @@
 import { useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { tint } from '@/components/Sheet';
-import { type NapEntry, napMinutes, type SlotEntry, type SlotKey, type SnackEntry } from '@/lib/log-types';
-import { fmtDuration, fmtRange, fmtTime } from '@/lib/time';
+import { type NapEntry, napMinutes, runningNap, type SlotEntry, type SlotKey, type SnackEntry } from '@/lib/log-types';
+import { fmtDuration, fmtRange, fmtTime, toMin } from '@/lib/time';
 import { NapSheet } from './NapSheet';
 import { SnackSheet } from './SnackSheet';
 import { TileSheet } from './TileSheet';
 import { AMOUNT_TEXT, type SlotTileDef, type TileDef, type TileKey, TILES } from './tiles';
+import { useNowMin } from './useNowMin';
 
 type Props = {
   date: string;
@@ -17,9 +18,11 @@ type Props = {
   snacks: SnackEntry[];
   foods: string[];
   colors: Record<string, string>;
+  isToday: boolean;
+  nowMin: number;
 };
 
-export function TodayTiles({ date, slots, naps, snacks, foods, colors }: Props) {
+export function TodayTiles({ date, slots, naps, snacks, foods, colors, isToday, nowMin }: Props) {
   const [open, setOpen] = useState<TileKey | null>(null);
   const openTile = TILES.find((t) => t.key === open);
   return (
@@ -27,7 +30,7 @@ export function TodayTiles({ date, slots, naps, snacks, foods, colors }: Props) 
       <div className="tiles">
         {TILES.map((t) =>
           t.key === 'nap' ? (
-            <NapTile key="nap" def={t} naps={naps} colors={colors} onOpen={() => setOpen('nap')} />
+            <NapTile key="nap" def={t} naps={naps} colors={colors} isToday={isToday} nowMin={nowMin} onOpen={() => setOpen('nap')} />
           ) : t.key === 'snack' ? (
             <SnackTile key="snack" def={t} snacks={snacks} colors={colors} onOpen={() => setOpen('snack')} />
           ) : (
@@ -35,7 +38,9 @@ export function TodayTiles({ date, slots, naps, snacks, foods, colors }: Props) 
           ),
         )}
       </div>
-      {open === 'nap' && <NapSheet key={`${date}-nap`} date={date} naps={naps} onClose={() => setOpen(null)} />}
+      {open === 'nap' && (
+        <NapSheet key={`${date}-nap`} date={date} naps={naps} isToday={isToday} onClose={() => setOpen(null)} />
+      )}
       {open === 'snack' && <SnackSheet key={`${date}-snack`} date={date} snacks={snacks} foods={foods} onClose={() => setOpen(null)} />}
       {openTile && openTile.key !== 'nap' && openTile.key !== 'snack' && (
         <TileSheet
@@ -114,16 +119,41 @@ function Tile({ def, entry, colors, onOpen }: { def: TileDef; entry: SlotEntry |
   );
 }
 
-/** Total sleep, and either the one nap's times or how many naps there were. */
-function NapTile({ def, naps, colors, onOpen }: { def: TileDef; naps: NapEntry[]; colors: Record<string, string>; onOpen: () => void }) {
+type NapTileProps = { def: TileDef; naps: NapEntry[]; colors: Record<string, string>; isToday: boolean; nowMin: number; onOpen: () => void };
+
+/**
+ * Today with a nap running: how long he's been asleep, counting up.
+ * Otherwise total sleep, and the one nap's times, how many naps there were, or a missing wake-up time.
+ */
+function NapTile({ def, naps, colors, isToday, nowMin, onOpen }: NapTileProps) {
+  const now = useNowMin(nowMin);
   if (!naps.length) return <EmptyTile def={def} onOpen={onOpen} />;
+  const running = runningNap(naps);
   const latest = naps[naps.length - 1];
+  const total = napMinutes(naps);
+
+  let big: React.ReactNode = fmtDuration(total);
+  let meta = naps.length === 1 && latest.end ? fmtRange(latest.start, latest.end) : `${naps.length} naps`;
+  let by = latest.byName;
+  if (running && isToday) {
+    big = (
+      <>
+        <small>Asleep </small>
+        {fmtDuration(Math.max(0, now - toMin(running.start)))}
+      </>
+    );
+    meta = `since ${fmtTime(running.start)}`;
+    by = running.byName;
+  } else if (running) {
+    big = total ? fmtDuration(total) : '—';
+    meta = 'No wake-up time yet';
+  }
   return (
     <button type="button" className="tile" style={tint(def.color)} onClick={onOpen}>
       <TileHead def={def} />
-      <span className="t-big">{fmtDuration(napMinutes(naps))}</span>
-      <span className="t-meta">{naps.length === 1 ? fmtRange(latest.start, latest.end) : `${naps.length} naps`}</span>
-      <Who name={latest.byName} colors={colors} />
+      <span className="t-big">{big}</span>
+      <span className="t-meta">{meta}</span>
+      <Who name={by} colors={colors} />
     </button>
   );
 }

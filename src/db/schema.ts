@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, date, integer, pgTable, primaryKey, serial, text, timestamp, unique } from 'drizzle-orm/pg-core';
+import { boolean, check, date, integer, pgTable, primaryKey, serial, text, timestamp, unique, uniqueIndex } from 'drizzle-orm/pg-core';
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -62,7 +62,8 @@ export const naps = pgTable(
     id: serial('id').primaryKey(),
     date: date('date', { mode: 'string' }).notNull(),
     startTime: text('start_time').notNull(),
-    endTime: text('end_time').notNull(),
+    // Empty while he's still asleep.
+    endTime: text('end_time'),
     createdBy: integer('created_by')
       .notNull()
       .references(() => users.id),
@@ -72,7 +73,10 @@ export const naps = pgTable(
     createdAt: ts('created_at').notNull().defaultNow(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
-  (t) => [check('nap_end_after_start', sql`${t.endTime} > ${t.startTime}`)],
+  (t) => [
+    check('nap_end_after_start', sql`${t.endTime} is null or ${t.endTime} > ${t.startTime}`),
+    uniqueIndex('naps_one_running_per_day').on(t.date).where(sql`${t.endTime} is null`),
+  ],
 );
 
 export const snacks = pgTable('snacks', {

@@ -94,12 +94,13 @@ The UI hides controls a caretaker can't use, and the server enforces the same ru
 
 - Header "Ezra's day" with ‹ › day arrows. The › arrow is disabled on today.
 - "With Ezra now" card (today only) shows the current shift, when it ends and who is next, from the schedule. Tapping it opens Calendar → Caretakers.
-- Progress line: "N of 6 logged" (the nap and snack tiles count once there's at least one nap or snack), plus total nap length.
+- Progress line: "N of 6 logged" (the nap and snack tiles count once there's at least one nap or snack), plus total nap length, plus "asleep now" while a nap is running today.
 - Six tiles in two columns. An empty tile opens its add sheet. A filled tile shows the value and who saved it, and opens an edit sheet with Remove.
   - Woke up: one time.
   - Breakfast, Lunch, Dinner: what he ate (free text, with chips for recently used foods), how much (All, Most, Some, A little, None) and time.
   - Snack: **as many snacks as he eats** (changed by owner, 2026-11-26). Each snack has the same fields as a meal. The tile shows the latest snack's food and time, plus how much he ate when there's one snack or "N snacks" when there are more. Tapping it lists the day's snacks (each editable or removable) with "Add another snack", or goes straight to the form when there are none.
   - Nap: **as many naps as he takes** (changed by owner, 2026-11-25). The tile shows total sleep, plus the times when there's one nap or "N naps" when there are more. Tapping it lists the day's naps (each editable or removable) with "Add another nap", or goes straight to the form when there are none. Each nap has fell asleep and woke up times, with live duration.
+    - **Logged as it happens** (changed by owner, 2026-11-26): a nap can be started with "He's asleep now" (the server's current time) or by typing when he fell asleep and leaving Woke up empty, and ended later with "He just woke up" or a typed time. Anyone can end a nap someone else started. While one is running today, the tile counts up ("Asleep 45m, since 1:05 pm") and tapping it opens that nap. The "now" buttons only appear on today. A running nap isn't in the total until it ends; one left without a wake-up time on an earlier day shows "No wake-up time yet" and is never shown as asleep.
 - "Anything else": list of free entries sorted by time. "+ Add something else" opens a sheet with kind, details and time.
 - Changes by others show up when the app is reopened or comes back into focus, and every 60 seconds while it's open. Live push isn't needed.
 
@@ -206,7 +207,7 @@ Same sync pipeline, with places marked as ideas rather than connected places. Sh
 - `login_attempts`: email, count, locked_until
 - `schedule_people`: id, name, color (one of the mockup's person colors), user_id (nullable)
 - `log_slots`: date, slot (`wake`, `breakfast`, `lunch`, `dinner`), time, food, amount, updated_by, updated_at. Unique on (date, slot).
-- `naps`: id, date, start_time, end_time, created_by, updated_by, timestamps. Several per day.
+- `naps`: id, date, start_time, end_time (empty while he's asleep; at most one per day), created_by, updated_by, timestamps. Several per day.
 - `snacks`: id, date, time, food, amount, created_by, updated_by, timestamps. Several per day.
 - `log_notes`: id, date, time, kind, text, created_by, updated_by, timestamps
 - `shifts`: id, date, schedule_person_id, start_time, end_time, timestamps. Shifts must end after they start and can't cross midnight.

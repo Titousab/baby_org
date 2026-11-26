@@ -1,7 +1,20 @@
 import { describe, expect, test } from 'vitest';
 import { logSlots } from '@/db/schema';
-import { clearSlot, deleteNap, deleteNote, deleteSnack, getDayLog, recentFoods, saveNap, saveNote, saveSlot, saveSnack } from '@/lib/log';
-import { napMinutes } from '@/lib/log-types';
+import {
+  clearSlot,
+  deleteNap,
+  deleteNote,
+  deleteSnack,
+  endNapNow,
+  getDayLog,
+  recentFoods,
+  saveNap,
+  saveNote,
+  saveSlot,
+  saveSnack,
+  startNapNow,
+} from '@/lib/log';
+import { napMinutes, runningNap } from '@/lib/log-types';
 import { createTestDb, seedUser } from '../helpers/test-db';
 
 const TODAY = '2026-11-25';
@@ -115,6 +128,95 @@ describe('naps', () => {
     expect((await getDayLog(db, TODAY)).naps).toMatchObject([{ id: nap.id, start: '13:10', end: '14:40', byName: 'Selina' }]);
     await deleteNap(db, nap.id);
     expect((await getDayLog(db, TODAY)).naps).toEqual([]);
+  });
+
+  test('a nap can be saved before he wakes up; it stays out of the total until someone adds the end', async () => {
+    const { db, mom, selina } = await setup();
+    await saveNap(db, { date: TODAY, start: '09:50', end: '11:10' }, mom, TODAY);
+    await saveNap(db, { date: TODAY, start: '13:05', end: '' }, selina, TODAY);
+    let day = await getDayLog(db, TODAY);
+    expect(day.naps.map((n) => `${n.start}-${n.end} ${n.byName}`)).toEqual(['09:50-11:10 Mom', '13:05-null Selina']);
+    expect(napMinutes(day.naps)).toBe(80);
+    const running = runningNap(day.naps)!;
+    expect(running.start).toBe('13:05');
+
+    await saveNap(db, { id: running.id, date: TODAY, start: '13:05', end: '14:20' }, mom, TODAY);
+    day = await getDayLog(db, TODAY);
+    expect(runningNap(day.naps)).toBeUndefined();
+    expect(napMinutes(day.naps)).toBe(155);
+    expect(day.naps[1].byName).toBe('Mom');
+  });
+
+  test('only one nap a day can be running', async () => {
+    const { db, mom, selina } = await setup();
+    await saveNap(db, { date: TODAY, start: '13:05' }, mom, TODAY);
+    await expect(saveNap(db, { date: TODAY, start: '13:20' }, selina, TODAY)).rejects.toMatchObject({
+      name: 'ValidationError',
+      message: "He's already asleep since 1:05 pm. Add when he woke up first.",
+    });
+    const [running] = (await getDayLog(db, TODAY)).naps;
+    await saveNap(db, { id: running.id, date: TODAY, start: '13:00' }, selina, TODAY);
+    await saveNap(db, { date: TODAY, start: '09:00', end: '09:40' }, selina, TODAY);
+    await saveNap(db, { date: '2026-11-24', start: '13:00' }, selina, TODAY);
+    expect((await getDayLog(db, TODAY)).naps.map((n) => `${n.start}-${n.end}`)).toEqual(['09:00-09:40', '13:00-null']);
+  });
+
+  test('two people tapping "asleep now" at once still get one running nap', async () => {
+    const { db, mom, selina } = await setup();
+    const at = new Date('2026-11-25T18:05:00Z');
+    const results = await Promise.allSettled([startNapNow(db, mom, at), startNapNow(db, selina, at)]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const lost = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+    expect(lost.reason).toMatchObject({ name: 'ValidationError', message: "He's already asleep since 1:05 pm. Add when he woke up first." });
+    expect((await getDayLog(db, TODAY)).naps).toHaveLength(1);
+  });
+
+  test('saving from a sheet opened before someone added the wake-up time keeps that time', async () => {
+    const { db, mom, selina } = await setup();
+    await startNapNow(db, mom, new Date('2026-11-25T18:05:00Z'));
+    const [nap] = (await getDayLog(db, TODAY)).naps;
+    await endNapNow(db, nap.id, selina, new Date('2026-11-25T19:30:00Z'));
+
+    // Mom's sheet still shows Woke up empty; she fixes the start and saves.
+    await expect(saveNap(db, { id: nap.id, date: TODAY, start: '13:00', end: '', loadedEnd: '' }, mom, TODAY)).rejects.toMatchObject({
+      name: 'ValidationError',
+      message: 'Someone already added when he woke up.',
+    });
+    expect((await getDayLog(db, TODAY)).naps[0]).toMatchObject({ start: '13:05', end: '14:30' });
+
+    // Clearing a wake-up time the sheet did show is still allowed.
+    await saveNap(db, { id: nap.id, date: TODAY, start: '13:05', end: '', loadedEnd: '14:30' }, selina, TODAY);
+    expect((await getDayLog(db, TODAY)).naps[0].end).toBeNull();
+  });
+
+  test('"asleep now" and "woke up now" use the time in New York', async () => {
+    const { db, mom, selina } = await setup();
+    await startNapNow(db, selina, new Date('2026-11-25T18:05:00Z'));
+    const [nap] = (await getDayLog(db, TODAY)).naps;
+    expect(nap).toMatchObject({ start: '13:05', end: null, byName: 'Selina' });
+    await endNapNow(db, nap.id, mom, new Date('2026-11-25T19:47:30Z'));
+    expect((await getDayLog(db, TODAY)).naps).toMatchObject([{ start: '13:05', end: '14:47', byName: 'Mom' }]);
+  });
+
+  test('"woke up now" is refused in the same minute, on a later day, after someone ended it, or once removed', async () => {
+    const { db, mom, selina } = await setup();
+    await startNapNow(db, mom, new Date('2026-11-25T18:05:00Z'));
+    const [nap] = (await getDayLog(db, TODAY)).naps;
+    await expect(endNapNow(db, nap.id, mom, new Date('2026-11-25T18:05:40Z'))).rejects.toMatchObject({
+      field: 'end',
+      message: 'The nap has to end after it starts.',
+    });
+    await expect(endNapNow(db, nap.id, mom, new Date('2026-11-26T15:00:00Z'))).rejects.toMatchObject({
+      field: 'end',
+      message: 'Type when he woke up.',
+    });
+    await endNapNow(db, nap.id, mom, new Date('2026-11-25T19:00:00Z'));
+    await expect(endNapNow(db, nap.id, selina, new Date('2026-11-25T19:10:00Z'))).rejects.toMatchObject({
+      message: 'Someone already added when he woke up.',
+    });
+    expect((await getDayLog(db, TODAY)).naps[0].end).toBe('14:00');
+    await deleteNap(db, nap.id);
+    await expect(endNapNow(db, nap.id, mom, new Date('2026-11-25T19:10:00Z'))).rejects.toMatchObject({ message: 'That nap was removed.' });
   });
 });
 

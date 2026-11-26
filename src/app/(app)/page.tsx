@@ -6,7 +6,7 @@ import { NowCard } from '@/components/today/NowCard';
 import { TILES } from '@/components/today/tiles';
 import { TodayTiles } from '@/components/today/TodayTiles';
 import { requireUser } from '@/lib/auth/current-user';
-import { getDayLog, napMinutes, recentFoods } from '@/lib/log';
+import { getDayLog, napMinutes, recentFoods, runningNap } from '@/lib/log';
 import { colorsByName } from '@/lib/people';
 import { getDayShifts } from '@/lib/schedule/repo';
 import { fmtDuration, fromMin, minutesNowNY, todayNY } from '@/lib/time';
@@ -31,6 +31,9 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   );
   const logged = filled.filter(Boolean).length;
   const napped = napMinutes(day.naps);
+  const isToday = date === today;
+  const nowMin = minutesNowNY();
+  const asleep = isToday && Boolean(runningNap(day.naps));
 
   return (
     <>
@@ -42,7 +45,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         <DayNav date={date} today={today} />
       </header>
       <div className="content gut">
-        {date === today && <NowCard shifts={todayShifts} nowMin={minutesNowNY()} />}
+        {isToday && <NowCard shifts={todayShifts} nowMin={nowMin} />}
         <p className="progress">
           <span className="pips" aria-hidden="true">
             {TILES.map((t, i) => (
@@ -52,15 +55,24 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           <span>
             <b>{logged} of 6</b> logged
           </span>
-          {napped > 0 && (
+          {(napped > 0 || asleep) && (
             <>
               <span aria-hidden="true">·</span>
-              <span>Napped {fmtDuration(napped)}</span>
+              <span>{napped > 0 ? `Napped ${fmtDuration(napped)}${asleep ? ' · asleep now' : ''}` : 'Asleep now'}</span>
             </>
           )}
         </p>
-        <TodayTiles date={date} slots={day.slots} naps={day.naps} snacks={day.snacks} foods={foods} colors={colors} />
-        <NotesSection date={date} notes={day.notes} colors={colors} defaultTime={date === today ? fromMin(minutesNowNY()) : '12:00'} />
+        <TodayTiles
+          date={date}
+          slots={day.slots}
+          naps={day.naps}
+          snacks={day.snacks}
+          foods={foods}
+          colors={colors}
+          isToday={isToday}
+          nowMin={nowMin}
+        />
+        <NotesSection date={date} notes={day.notes} colors={colors} defaultTime={isToday ? fromMin(nowMin) : '12:00'} />
       </div>
     </>
   );

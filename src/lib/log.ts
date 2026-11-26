@@ -1,9 +1,9 @@
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { logNotes, logSlots, naps, snacks, users } from '@/db/schema';
 import type { DB } from '@/db/types';
 import { ValidationError } from './errors';
 import { AMOUNTS, type DayLog, MEAL_SLOTS, NOTE_KINDS, type SlotEntry, type SlotKey, SLOTS } from './log-types';
-import { toMin } from './time';
+import { fmtTime, fromMin, minutesNowNY, todayNY, toMin } from './time';
 
 export * from './log-types';
 
@@ -84,20 +84,70 @@ export async function clearSlot(db: DB, date: string, slot: SlotKey): Promise<vo
   await db.delete(logSlots).where(and(eq(logSlots.date, date), eq(logSlots.slot, slot)));
 }
 
-type NapInput = { id?: number; date: string; start: string; end: string };
+/** `loadedEnd` is the wake-up time the form showed when it opened, so a stale form can't erase a newer one. */
+type NapInput = { id?: number; date: string; start: string; end?: string; loadedEnd?: string };
 
-/** Adds a nap, or changes one when `id` is given. A day can have as many naps as he takes. */
+const ONE_RUNNING_PER_DAY = 'naps_one_running_per_day';
+const alreadyAsleep = (start: string) => new ValidationError(`He's already asleep since ${fmtTime(start)}. Add when he woke up first.`);
+
+/** True when the database refused a second running nap on the same day (two saves raced past the check). */
+function isSecondRunningNap(e: unknown): boolean {
+  const cause = (e as { cause?: { code?: string; constraint?: string; message?: string } } | null)?.cause;
+  return cause?.code === '23505' && (cause.constraint === ONE_RUNNING_PER_DAY || Boolean(cause.message?.includes(ONE_RUNNING_PER_DAY)));
+}
+
+async function runningNapStart(db: DB, date: string, exceptId?: number): Promise<string | undefined> {
+  const others = and(eq(naps.date, date), isNull(naps.endTime), exceptId ? ne(naps.id, exceptId) : undefined);
+  const [asleep] = await db.select({ start: naps.startTime }).from(naps).where(others).limit(1);
+  return asleep?.start;
+}
+
+/**
+ * Adds a nap, or changes one when `id` is given. A day can have as many naps as he takes.
+ * Without an `end` the nap is running (he's still asleep); a day can have only one of those.
+ */
 export async function saveNap(db: DB, input: NapInput, userId: number, today: string): Promise<void> {
   checkDate(input.date, today);
   const start = checkTime(input.start, 'start');
-  const end = checkTime(input.end, 'end');
-  if (toMin(end) <= toMin(start)) throw new ValidationError('The nap has to end after it starts.', 'end');
-
-  if (input.id) {
-    await db.update(naps).set({ startTime: start, endTime: end, updatedBy: userId, updatedAt: new Date() }).where(eq(naps.id, input.id));
-  } else {
-    await db.insert(naps).values({ date: input.date, startTime: start, endTime: end, createdBy: userId, updatedBy: userId });
+  const end = input.end ? checkTime(input.end, 'end') : null;
+  if (end && toMin(end) <= toMin(start)) throw new ValidationError('The nap has to end after it starts.', 'end');
+  if (!end) {
+    const asleepSince = await runningNapStart(db, input.date, input.id);
+    if (asleepSince) throw alreadyAsleep(asleepSince);
+    if (input.id && !input.loadedEnd) {
+      const [saved] = await db.select({ end: naps.endTime }).from(naps).where(eq(naps.id, input.id));
+      if (saved?.end) throw new ValidationError('Someone already added when he woke up.');
+    }
   }
+
+  try {
+    if (input.id) {
+      await db.update(naps).set({ startTime: start, endTime: end, updatedBy: userId, updatedAt: new Date() }).where(eq(naps.id, input.id));
+    } else {
+      await db.insert(naps).values({ date: input.date, startTime: start, endTime: end, createdBy: userId, updatedBy: userId });
+    }
+  } catch (e) {
+    if (!isSecondRunningNap(e)) throw e;
+    const asleepSince = await runningNapStart(db, input.date, input.id);
+    throw asleepSince ? alreadyAsleep(asleepSince) : e;
+  }
+}
+
+/** "He's asleep now": starts a nap at the current New York time. */
+export async function startNapNow(db: DB, userId: number, now: Date): Promise<void> {
+  const today = todayNY(now);
+  await saveNap(db, { date: today, start: fromMin(minutesNowNY(now)) }, userId, today);
+}
+
+/** "He just woke up": ends a running nap at the current New York time. */
+export async function endNapNow(db: DB, id: number, userId: number, now: Date): Promise<void> {
+  const [nap] = await db.select().from(naps).where(eq(naps.id, id));
+  if (!nap) throw new ValidationError('That nap was removed.');
+  if (nap.endTime) throw new ValidationError('Someone already added when he woke up.');
+  if (nap.date !== todayNY(now)) throw new ValidationError('Type when he woke up.', 'end');
+  const end = fromMin(minutesNowNY(now));
+  if (toMin(end) <= toMin(nap.startTime)) throw new ValidationError('The nap has to end after it starts.', 'end');
+  await db.update(naps).set({ endTime: end, updatedBy: userId, updatedAt: new Date() }).where(eq(naps.id, id));
 }
 
 export async function deleteNap(db: DB, id: number): Promise<void> {
