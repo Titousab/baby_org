@@ -26,7 +26,9 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     colorsByName(db),
     date === today ? getDayShifts(db, today) : Promise.resolve([]),
   ]);
-  const filled = TILES.map((t) => (t.key === 'nap' ? day.naps.length > 0 : Boolean(day.slots[t.key])));
+  const filled = TILES.map((t) =>
+    t.key === 'nap' ? day.naps.length > 0 : t.key === 'snack' ? day.snacks.length > 0 : Boolean(day.slots[t.key]),
+  );
   const logged = filled.filter(Boolean).length;
   const napped = napMinutes(day.naps);
 
@@ -57,7 +59,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
             </>
           )}
         </p>
-        <TodayTiles date={date} slots={day.slots} naps={day.naps} foods={foods} colors={colors} />
+        <TodayTiles date={date} slots={day.slots} naps={day.naps} snacks={day.snacks} foods={foods} colors={colors} />
         <NotesSection date={date} notes={day.notes} colors={colors} defaultTime={date === today ? fromMin(minutesNowNY()) : '12:00'} />
       </div>
     </>
