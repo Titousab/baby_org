@@ -45,6 +45,37 @@ test('logging, editing and removing things on Today', async ({ page }) => {
   await expect(napTile).toContainText('2 naps');
   await expect(page.getByText('Napped 2h')).toBeVisible();
 
+  // Two snacks the same day
+  await page.getByRole('button', { name: 'Add Snack' }).click();
+  await page.getByRole('dialog').getByLabel('What did he eat?').fill('Apple slices');
+  await page.getByRole('dialog').getByLabel('What time?').fill('10:00');
+  await page.getByRole('dialog').getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByText('Snack saved. Everyone can see it now.')).toBeVisible();
+  const snackTile = page.getByRole('button', { name: /^Snack/ });
+  await expect(snackTile).toContainText('Apple slices');
+  await expect(snackTile).toContainText('10:00 am · ate most');
+  await expect(page.getByText('2 of 6 logged')).toBeVisible();
+
+  await snackTile.click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Add another snack' }).click();
+  await page.getByRole('dialog').getByLabel('What did he eat?').fill('Crackers');
+  await page.getByRole('dialog').getByRole('button', { name: 'Save' }).click();
+  await expect(snackTile).toContainText('Crackers');
+  await expect(snackTile).toContainText('3:00 pm · 2 snacks');
+
+  // Remove them one at a time
+  await snackTile.click();
+  await expect(page.getByRole('dialog')).toContainText('2 snacks');
+  await page.getByRole('dialog').getByRole('button', { name: /Apple slices/ }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Remove' }).click();
+  await expect(page.getByText('Snack removed')).toBeVisible();
+  await expect(snackTile).toContainText('3:00 pm · ate most');
+  await snackTile.click();
+  await page.getByRole('dialog').getByRole('button', { name: /Crackers/ }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Remove' }).click();
+  await expect(page.getByRole('button', { name: 'Add Snack' })).toBeVisible();
+  await expect(page.getByText('1 of 6 logged')).toBeVisible();
+
   // Something else
   await page.getByRole('button', { name: 'Add something else' }).click();
   await page.getByRole('dialog').getByText('Milestone', { exact: true }).click();

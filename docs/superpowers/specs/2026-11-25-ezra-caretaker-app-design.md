@@ -94,10 +94,11 @@ The UI hides controls a caretaker can't use, and the server enforces the same ru
 
 - Header "Ezra's day" with ‹ › day arrows. The › arrow is disabled on today.
 - "With Ezra now" card (today only) shows the current shift, when it ends and who is next, from the schedule. Tapping it opens Calendar → Caretakers.
-- Progress line: "N of 6 logged" (the nap tile counts once there's at least one nap), plus total nap length.
+- Progress line: "N of 6 logged" (the nap and snack tiles count once there's at least one nap or snack), plus total nap length.
 - Six tiles in two columns. An empty tile opens its add sheet. A filled tile shows the value and who saved it, and opens an edit sheet with Remove.
   - Woke up: one time.
-  - Breakfast, Lunch, Snack, Dinner: what he ate (free text, with chips for recently used foods), how much (All, Most, Some, A little, None) and time.
+  - Breakfast, Lunch, Dinner: what he ate (free text, with chips for recently used foods), how much (All, Most, Some, A little, None) and time.
+  - Snack: **as many snacks as he eats** (changed by owner, 2026-11-26). Each snack has the same fields as a meal. The tile shows the latest snack's food and time, plus how much he ate when there's one snack or "N snacks" when there are more. Tapping it lists the day's snacks (each editable or removable) with "Add another snack", or goes straight to the form when there are none.
   - Nap: **as many naps as he takes** (changed by owner, 2026-11-25). The tile shows total sleep, plus the times when there's one nap or "N naps" when there are more. Tapping it lists the day's naps (each editable or removable) with "Add another nap", or goes straight to the form when there are none. Each nap has fell asleep and woke up times, with live duration.
 - "Anything else": list of free entries sorted by time. "+ Add something else" opens a sheet with kind, details and time.
 - Changes by others show up when the app is reopened or comes back into focus, and every 60 seconds while it's open. Live push isn't needed.
@@ -204,8 +205,9 @@ Same sync pipeline, with places marked as ideas rather than connected places. Sh
 - `sessions`: id, user_id, token_hash, created_at, last_used_at, expires_at
 - `login_attempts`: email, count, locked_until
 - `schedule_people`: id, name, color (one of the mockup's person colors), user_id (nullable)
-- `log_slots`: date, slot (`wake`, `breakfast`, `lunch`, `snack`, `dinner`), time, food, amount, updated_by, updated_at. Unique on (date, slot).
+- `log_slots`: date, slot (`wake`, `breakfast`, `lunch`, `dinner`), time, food, amount, updated_by, updated_at. Unique on (date, slot).
 - `naps`: id, date, start_time, end_time, created_by, updated_by, timestamps. Several per day.
+- `snacks`: id, date, time, food, amount, created_by, updated_by, timestamps. Several per day.
 - `log_notes`: id, date, time, kind, text, created_by, updated_by, timestamps
 - `shifts`: id, date, schedule_person_id, start_time, end_time, timestamps. Shifts must end after they start and can't cross midnight.
 - `days_off`: date, label
