@@ -43,6 +43,13 @@
       "when": 1795717363634,
       "tag": "0005_multiple_snacks",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795718347631,
+      "tag": "0006_nap_in_progress",
+      "breakpoints": true
     }
   ]
 }

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { getDb } from '@/db/client';
 import { requireUser } from '@/lib/auth/current-user';
 import { type ActionResult, guard } from '@/lib/errors';
-import { clearSlot, deleteNap, deleteNote, deleteSnack, saveNap, saveNote, saveSlot, saveSnack, type SlotKey } from '@/lib/log';
+import { clearSlot, deleteNap, deleteNote, deleteSnack, endNapNow, saveNap, saveNote, saveSlot, saveSnack, type SlotKey, startNapNow } from '@/lib/log';
 import { todayNY } from '@/lib/time';
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? '');
@@ -42,6 +42,22 @@ export async function saveNapAction(form: FormData): Promise<ActionResult> {
     const user = await requireUser();
     const id = Number(form.get('id')) || undefined;
     await saveNap(await getDb(), { id, date: text(form, 'date'), start: text(form, 'start'), end: text(form, 'end') }, user.id, todayNY());
+    revalidatePath('/');
+  });
+}
+
+export async function startNapNowAction(): Promise<ActionResult> {
+  return guard(async () => {
+    const user = await requireUser();
+    await startNapNow(await getDb(), user.id, new Date());
+    revalidatePath('/');
+  });
+}
+
+export async function endNapNowAction(id: number): Promise<ActionResult> {
+  return guard(async () => {
+    const user = await requireUser();
+    await endNapNow(await getDb(), id, user.id, new Date());
     revalidatePath('/');
   });
 }

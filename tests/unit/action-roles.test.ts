@@ -21,7 +21,7 @@ vi.mock('@/lib/auth/current-user', async () => {
   };
 });
 
-const { saveSlotAction, saveSnackAction, saveNoteAction } = await import('@/app/actions/log');
+const { saveSlotAction, saveSnackAction, saveNoteAction, startNapNowAction } = await import('@/app/actions/log');
 const schedule = await import('@/app/actions/schedule');
 const people = await import('@/app/actions/people');
 
@@ -81,6 +81,7 @@ describe('a caretaker can log the day and change their own password', () => {
   test('logging works', async () => {
     expect(await saveSlotAction(form({ date: '2026-11-25', slot: 'wake', time: '06:45' }))).toEqual({ ok: true });
     expect(await saveSnackAction(form({ date: '2026-11-25', time: '15:00', food: 'Crackers', amount: 'Some' }))).toEqual({ ok: true });
+    expect(await startNapNowAction()).toEqual({ ok: true });
     expect(await saveNoteAction(form({ date: '2026-11-25', time: '09:00', kind: 'Note', text: 'Happy morning' }))).toEqual({ ok: true });
   });
 
