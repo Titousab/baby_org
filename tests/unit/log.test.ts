@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { logSlots } from '@/db/schema';
-import { clearSlot, deleteNap, deleteNote, getDayLog, recentFoods, saveNap, saveNote, saveSlot } from '@/lib/log';
+import { clearSlot, deleteNap, deleteNote, deleteSnack, getDayLog, recentFoods, saveNap, saveNote, saveSlot, saveSnack } from '@/lib/log';
 import { napMinutes } from '@/lib/log-types';
 import { createTestDb, seedUser } from '../helpers/test-db';
 
@@ -25,7 +25,8 @@ describe('slots', () => {
       amount: 'Most',
       byName: 'Mom',
     });
-    expect(day.slots.snack).toBeNull();
+    expect(day.slots.lunch).toBeNull();
+    expect(day.snacks).toEqual([]);
   });
 
   test('when two people save the same slot, the last save wins and shows its author', async () => {
@@ -48,6 +49,12 @@ describe('slots', () => {
     const { db, mom } = await setup();
     // @ts-expect-error 'nap' is not a slot any more
     await expect(saveSlot(db, { date: TODAY, slot: 'nap', time: '13:00' }, mom, TODAY)).rejects.toMatchObject({ name: 'ValidationError' });
+  });
+
+  test('snacks are no longer a single slot', async () => {
+    const { db, mom } = await setup();
+    // @ts-expect-error 'snack' is not a slot any more
+    await expect(saveSlot(db, { date: TODAY, slot: 'snack', time: '15:00', food: 'Crackers' }, mom, TODAY)).rejects.toMatchObject({ name: 'ValidationError' });
   });
 
   test('a day that has not happened yet cannot be logged; today can', async () => {
@@ -111,6 +118,49 @@ describe('naps', () => {
   });
 });
 
+describe('snacks', () => {
+  test('a day can have several snacks, sorted by time then save order, each showing who saved it', async () => {
+    const { db, mom, selina } = await setup();
+    await saveSnack(db, { date: TODAY, time: '15:00', food: 'Crackers', amount: 'Some' }, selina, TODAY);
+    await saveSnack(db, { date: TODAY, time: '10:00', food: 'Apple slices', amount: 'All' }, mom, TODAY);
+    await saveSnack(db, { date: TODAY, time: '15:00', food: '  Cheese ' }, mom, TODAY);
+    const day = await getDayLog(db, TODAY);
+    expect(day.snacks.map((s) => `${s.time} ${s.food} ${s.amount} ${s.byName}`)).toEqual([
+      '10:00 Apple slices All Mom',
+      '15:00 Crackers Some Selina',
+      '15:00 Cheese null Mom',
+    ]);
+  });
+
+  test('a snack needs what he ate, a known amount, a real time and a day that has happened', async () => {
+    const { db, mom } = await setup();
+    await expect(saveSnack(db, { date: TODAY, time: '15:00', food: ' ' }, mom, TODAY)).rejects.toMatchObject({
+      field: 'food',
+      message: 'Write what he ate, like "banana and yogurt".',
+    });
+    await expect(saveSnack(db, { date: TODAY, time: '15:00', food: 'Rice', amount: 'Lots' }, mom, TODAY)).rejects.toMatchObject({ name: 'ValidationError' });
+    await expect(saveSnack(db, { date: TODAY, time: '3pm', food: 'Rice' }, mom, TODAY)).rejects.toMatchObject({ field: 'time' });
+    await expect(saveSnack(db, { date: '2026-11-26', time: '15:00', food: 'Rice' }, mom, TODAY)).rejects.toMatchObject({
+      message: "You can't log a day that hasn't happened yet.",
+    });
+    expect((await getDayLog(db, TODAY)).snacks).toEqual([]);
+  });
+
+  test('editing one snack changes only that one; a snack can be deleted', async () => {
+    const { db, mom, selina } = await setup();
+    await saveSnack(db, { date: TODAY, time: '10:00', food: 'Apple slices', amount: 'All' }, mom, TODAY);
+    await saveSnack(db, { date: TODAY, time: '15:00', food: 'Crackers', amount: 'Some' }, mom, TODAY);
+    const [morning, afternoon] = (await getDayLog(db, TODAY)).snacks;
+    await saveSnack(db, { id: morning.id, date: TODAY, time: '10:30', food: 'Pear slices', amount: 'Most' }, selina, TODAY);
+    expect((await getDayLog(db, TODAY)).snacks).toEqual([
+      { id: morning.id, time: '10:30', food: 'Pear slices', amount: 'Most', byName: 'Selina' },
+      afternoon,
+    ]);
+    await deleteSnack(db, morning.id);
+    expect((await getDayLog(db, TODAY)).snacks).toEqual([afternoon]);
+  });
+});
+
 describe('notes', () => {
   test('notes need text, come back sorted by time, and can be edited and deleted', async () => {
     const { db, mom, selina } = await setup();
@@ -138,16 +188,16 @@ describe('notes', () => {
 });
 
 describe('recentFoods', () => {
-  test('splits recent meals into foods, newest first, padded with defaults', async () => {
+  test('splits recent meals and snacks into foods, newest first, padded with defaults', async () => {
     const { db, mom } = await setup();
+    await saveSnack(db, { date: '2026-11-23', time: '15:00', food: 'Apple slices', amount: 'All' }, mom, TODAY);
     await saveSlot(db, { date: '2026-11-24', slot: 'lunch', time: '12:00', food: 'Pasta with peas and cheese', amount: 'All' }, mom, TODAY);
-    await saveSlot(db, { date: TODAY, slot: 'snack', time: '15:00', food: 'Yogurt and banana', amount: 'All' }, mom, TODAY);
+    await saveSnack(db, { date: TODAY, time: '15:00', food: 'Yogurt and banana', amount: 'All' }, mom, TODAY);
 
     const foods = await recentFoods(db);
     expect(foods).toHaveLength(10);
-    expect(foods.slice(0, 5)).toEqual(['Yogurt', 'Banana', 'Pasta', 'Peas', 'Cheese']);
+    expect(foods.slice(0, 6)).toEqual(['Yogurt', 'Banana', 'Pasta', 'Peas', 'Cheese', 'Apple slices']);
     expect(new Set(foods.map((f) => f.toLowerCase())).size).toBe(10);
-    expect(foods).toContain('Oatmeal');
   });
 
   test('with no meals yet, the defaults are offered', async () => {

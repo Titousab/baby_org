@@ -36,6 +36,13 @@
       "when": 1795648272004,
       "tag": "0004_sync_fixes",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795716623871,
+      "tag": "0005_multiple_snacks",
+      "breakpoints": true
     }
   ]
 }

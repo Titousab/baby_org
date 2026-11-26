@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { getDb } from '@/db/client';
 import { requireUser } from '@/lib/auth/current-user';
 import { type ActionResult, guard } from '@/lib/errors';
-import { clearSlot, deleteNap, deleteNote, saveNap, saveNote, saveSlot, type SlotKey } from '@/lib/log';
+import { clearSlot, deleteNap, deleteNote, deleteSnack, saveNap, saveNote, saveSlot, saveSnack, type SlotKey } from '@/lib/log';
 import { todayNY } from '@/lib/time';
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? '');
@@ -50,6 +50,28 @@ export async function deleteNapAction(id: number): Promise<ActionResult> {
   return guard(async () => {
     await requireUser();
     await deleteNap(await getDb(), id);
+    revalidatePath('/');
+  });
+}
+
+export async function saveSnackAction(form: FormData): Promise<ActionResult> {
+  return guard(async () => {
+    const user = await requireUser();
+    const id = Number(form.get('id')) || undefined;
+    await saveSnack(
+      await getDb(),
+      { id, date: text(form, 'date'), time: text(form, 'time'), food: optional(form, 'food'), amount: optional(form, 'amount') },
+      user.id,
+      todayNY(),
+    );
+    revalidatePath('/');
+  });
+}
+
+export async function deleteSnackAction(id: number): Promise<ActionResult> {
+  return guard(async () => {
+    await requireUser();
+    await deleteSnack(await getDb(), id);
     revalidatePath('/');
   });
 }

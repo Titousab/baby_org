@@ -204,8 +204,9 @@ Same sync pipeline, with places marked as ideas rather than connected places. Sh
 - `sessions`: id, user_id, token_hash, created_at, last_used_at, expires_at
 - `login_attempts`: email, count, locked_until
 - `schedule_people`: id, name, color (one of the mockup's person colors), user_id (nullable)
-- `log_slots`: date, slot (`wake`, `breakfast`, `lunch`, `snack`, `dinner`), time, food, amount, updated_by, updated_at. Unique on (date, slot).
+- `log_slots`: date, slot (`wake`, `breakfast`, `lunch`, `dinner`), time, food, amount, updated_by, updated_at. Unique on (date, slot).
 - `naps`: id, date, start_time, end_time, created_by, updated_by, timestamps. Several per day.
+- `snacks`: id, date, time, food, amount, created_by, updated_by, timestamps. Several per day.
 - `log_notes`: id, date, time, kind, text, created_by, updated_by, timestamps
 - `shifts`: id, date, schedule_person_id, start_time, end_time, timestamps. Shifts must end after they start and can't cross midnight.
 - `days_off`: date, label

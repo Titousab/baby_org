@@ -74,6 +74,22 @@ export const naps = pgTable(
   (t) => [check('nap_end_after_start', sql`${t.endTime} > ${t.startTime}`)],
 );
 
+export const snacks = pgTable('snacks', {
+  id: serial('id').primaryKey(),
+  date: date('date', { mode: 'string' }).notNull(),
+  time: text('time').notNull(),
+  food: text('food').notNull(),
+  amount: text('amount'),
+  createdBy: integer('created_by')
+    .notNull()
+    .references(() => users.id),
+  updatedBy: integer('updated_by')
+    .notNull()
+    .references(() => users.id),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
 export const logNotes = pgTable('log_notes', {
   id: serial('id').primaryKey(),
   date: date('date', { mode: 'string' }).notNull(),
