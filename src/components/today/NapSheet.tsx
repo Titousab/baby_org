@@ -1,21 +1,28 @@
 'use client';
 
 import { type FormEvent, useState, useTransition } from 'react';
-import { deleteNapAction, saveNapAction } from '@/app/actions/log';
+import { deleteNapAction, endNapNowAction, saveNapAction, startNapNowAction } from '@/app/actions/log';
 import { FieldError, type FormError, FormMessage } from '@/components/FieldError';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/Sheet';
 import { useToast } from '@/components/Toast';
+import { type ActionResult } from '@/lib/errors';
 import { callAction } from '@/lib/call-action';
-import { type NapEntry, napMinutes } from '@/lib/log-types';
-import { fmtDuration, fmtRange, toMin } from '@/lib/time';
+import { type NapEntry, napMinutes, runningNap } from '@/lib/log-types';
+import { fmtDuration, fmtRange, fmtTime, fromMin, toMin } from '@/lib/time';
 import { DEFAULT_NAP } from './tiles';
+import { useNowMin } from './useNowMin';
 
-type Props = { date: string; naps: NapEntry[]; onClose: () => void };
+type Props = { date: string; naps: NapEntry[]; isToday: boolean; nowMin: number; onClose: () => void };
 
-/** The day's naps: a list to pick from, or straight to the form when there are none yet. */
-export function NapSheet({ date, naps, onClose }: Props) {
-  const [editing, setEditing] = useState<NapEntry | 'new' | null>(naps.length ? null : 'new');
+const STARTED = "Nap started. Everyone can see he's asleep.";
+const SAVED = 'Nap saved. Everyone can see it now.';
+
+/** The day's naps: the running one on today, else a list to pick from, or straight to the form when there are none yet. */
+export function NapSheet({ date, naps, isToday, nowMin, onClose }: Props) {
+  const running = runningNap(naps);
+  const [editing, setEditing] = useState<NapEntry | 'new' | null>(isToday && running ? running : naps.length ? null : 'new');
+  const now = useNowMin(nowMin);
 
   if (editing) {
     return (
@@ -23,6 +30,9 @@ export function NapSheet({ date, naps, onClose }: Props) {
         key={editing === 'new' ? 'new' : editing.id}
         date={date}
         nap={editing === 'new' ? null : editing}
+        isToday={isToday}
+        nowMin={now}
+        someoneAsleep={Boolean(running && running !== editing)}
         canGoBack={naps.length > 0}
         onBack={() => setEditing(null)}
         onClose={onClose}
@@ -39,9 +49,9 @@ export function NapSheet({ date, naps, onClose }: Props) {
         {naps.map((n) => (
           <li key={n.id}>
             <button type="button" className="note" onClick={() => setEditing(n)}>
-              <span className="n-time">{fmtDuration(toMin(n.end) - toMin(n.start))}</span>
+              <span className="n-time">{n.end ? fmtDuration(toMin(n.end) - toMin(n.start)) : isToday ? 'Asleep' : '—'}</span>
               <span className="n-body">
-                <p>{fmtRange(n.start, n.end)}</p>
+                <p>{n.end ? fmtRange(n.start, n.end) : isToday ? `Since ${fmtTime(n.start)}` : `${fmtTime(n.start)}, no wake-up time yet`}</p>
                 <span className="t-by">{n.byName}</span>
               </span>
             </button>
@@ -55,42 +65,66 @@ export function NapSheet({ date, naps, onClose }: Props) {
   );
 }
 
-type FormProps = { date: string; nap: NapEntry | null; canGoBack: boolean; onBack: () => void; onClose: () => void };
+type FormProps = {
+  date: string;
+  nap: NapEntry | null;
+  isToday: boolean;
+  nowMin: number;
+  someoneAsleep: boolean;
+  canGoBack: boolean;
+  onBack: () => void;
+  onClose: () => void;
+};
 
-function NapForm({ date, nap, canGoBack, onBack, onClose }: FormProps) {
+function NapForm({ date, nap, isToday, nowMin, someoneAsleep, canGoBack, onBack, onClose }: FormProps) {
   const toast = useToast();
   const [error, setError] = useState<FormError>(null);
   const [pending, startTransition] = useTransition();
-  const [start, setStart] = useState(nap?.start ?? DEFAULT_NAP.start);
-  const [end, setEnd] = useState(nap?.end ?? DEFAULT_NAP.end);
-  const valid = start && end && toMin(end) > toMin(start);
+  const [start, setStart] = useState(nap?.start ?? (isToday ? fromMin(nowMin) : DEFAULT_NAP.start));
+  const [end, setEnd] = useState(nap ? (nap.end ?? '') : isToday ? '' : DEFAULT_NAP.end);
+  const asleepNow = Boolean(nap && nap.end === null && isToday);
+  const valid = start && (!end || toMin(end) > toMin(start));
+
+  function run(action: () => Promise<ActionResult>, message: string) {
+    startTransition(async () => {
+      const r = await callAction(action);
+      if (r.ok) {
+        onClose();
+        toast(message);
+      } else setError(r);
+    });
+  }
 
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
-    startTransition(async () => {
-      const r = await callAction(() => saveNapAction(form));
-      if (r.ok) {
-        onClose();
-        toast('Nap saved. Everyone can see it now.');
-      } else setError(r);
-    });
+    run(() => saveNapAction(form), end ? SAVED : STARTED);
   }
 
   function remove() {
     if (!nap) return;
     const id = nap.id;
-    startTransition(async () => {
-      const r = await callAction(() => deleteNapAction(id));
-      if (r.ok) {
-        onClose();
-        toast('Nap removed');
-      } else setError(r);
-    });
+    run(() => deleteNapAction(id), 'Nap removed');
   }
 
+  const title = asleepNow ? 'Asleep' : nap ? 'Edit nap' : canGoBack ? 'Another nap' : 'Nap';
   return (
-    <Sheet open onClose={onClose} title={nap ? 'Edit nap' : canGoBack ? 'Another nap' : 'Nap'} icon="moon" color="sky">
+    <Sheet open onClose={onClose} title={title} icon="moon" color="sky">
+      {!nap && isToday && !someoneAsleep && (
+        <button type="button" className="btn-primary wide nap-now" onClick={() => run(() => startNapNowAction(), STARTED)} disabled={pending}>
+          He&apos;s asleep now
+        </button>
+      )}
+      {asleepNow && nap && (
+        <>
+          <p className="sheet-sub">
+            Asleep since {fmtTime(nap.start)} · {fmtDuration(Math.max(0, nowMin - toMin(nap.start)))} so far
+          </p>
+          <button type="button" className="btn-primary wide nap-now" onClick={() => run(() => endNapNowAction(nap.id), SAVED)} disabled={pending}>
+            He just woke up
+          </button>
+        </>
+      )}
       <form onSubmit={submit} noValidate>
         <input type="hidden" name="date" value={date} />
         {nap && <input type="hidden" name="id" value={nap.id} />}
@@ -107,7 +141,11 @@ function NapForm({ date, nap, canGoBack, onBack, onClose }: FormProps) {
           </div>
         </div>
         <p className="calc" style={{ marginTop: 16 }}>
-          {valid ? `Slept ${fmtDuration(toMin(end) - toMin(start))}` : 'Woke up needs to be after fell asleep'}
+          {!end
+            ? 'Still asleep. Add when he woke up later.'
+            : valid
+              ? `Slept ${fmtDuration(toMin(end) - toMin(start))}`
+              : 'Woke up needs to be after fell asleep'}
         </p>
         <FormMessage error={error} fields={['start', 'end']} />
         <div className="sheet-actions">
