@@ -53,3 +53,16 @@ test('a snack saved in the old once-a-day format moves into the snack list', asy
   const slots = await db.query<{ slot: string }>('SELECT slot FROM log_slots');
   expect(slots.rows.map((r) => r.slot)).toEqual(['lunch']);
 });
+
+test('once snacks are a list, an old page cannot save one where nothing reads it', async () => {
+  const db = new PGlite();
+  for (const f of files) await apply(db, f);
+  await db.exec(`INSERT INTO users (name, email, password_hash, role) VALUES ('Mom', 'mom@example.com', 'x', 'family')`);
+
+  await expect(
+    db.exec(`INSERT INTO log_slots (date, slot, time, food, updated_by) VALUES ('2026-11-25', 'snack', '15:00', 'Crackers', 1)`),
+  ).rejects.toThrow();
+  await db.exec(`INSERT INTO log_slots (date, slot, time, updated_by) VALUES ('2026-11-25', 'wake', '06:45', 1)`);
+  const slots = await db.query<{ slot: string }>('SELECT slot FROM log_slots');
+  expect(slots.rows.map((r) => r.slot)).toEqual(['wake']);
+});

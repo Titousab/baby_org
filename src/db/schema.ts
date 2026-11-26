@@ -52,7 +52,8 @@ export const logSlots = pgTable(
       .references(() => users.id),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.date, t.slot] })],
+  // Naps and snacks have their own lists; an old page can't save one here where nothing reads it.
+  (t) => [primaryKey({ columns: [t.date, t.slot] }), check('log_slots_known_slot', sql`${t.slot} in ('wake', 'breakfast', 'lunch', 'dinner')`)],
 );
 
 export const naps = pgTable(

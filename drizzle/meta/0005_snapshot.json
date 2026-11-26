@@ -1,5 +1,5 @@
 {
-  "id": "e19c7249-3724-4668-8fe1-1acb7ee56961",
+  "id": "ecfc06e2-a34c-4488-93c0-c6f64fe19b98",
   "prevId": "61e19618-93d5-4bf1-9b5b-a3ec9eebc6ae",
   "version": "7",
   "dialect": "postgresql",
@@ -448,7 +448,12 @@
       },
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "log_slots_known_slot": {
+          "name": "log_slots_known_slot",
+          "value": "\"log_slots\".\"slot\" in ('wake', 'breakfast', 'lunch', 'dinner')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.login_attempts": {
